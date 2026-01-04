@@ -144,7 +144,6 @@ export const API = {
     },
 
     async GET(url: string, headers?: any): Promise<AxiosResponse<any, any>> {
-        console.log("lendoo");
         const token = await this.getToken()
         const _headers = headers ?? {};
         var response: any;
@@ -152,8 +151,12 @@ export const API = {
             headers: {
                 'Content-type': 'application/json; charset=UTF-8',
                 'Authorization': 'Bearer ' + token,
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache',
                 ..._headers
             },
+            // Force fresh request, bypass HTTP cache
+            params: headers?.noCache ? { _t: Date.now() } : undefined,
         }
         ).then((res) => {
             response = res;

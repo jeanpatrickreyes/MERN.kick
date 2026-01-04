@@ -13,17 +13,19 @@ import { configRouter } from './routes/config.routes';
 const app = express();
 const PORT = 3000;
 
-//HOMO
-/*
+// CORS Configuration
+// For local development: specify exact origin and allow credentials
+// For production: can use wildcard or specific domain
 const corsOptions = {
-    origin: 'http://localhost:5173',
-    credentials: true,
+    origin: process.env.NODE_ENV === 'production' 
+        ? '*' // Production: allow all (or specify your domain)
+        : 'http://localhost:5173', // Development: exact origin required for credentials
+    credentials: true, // Required when using withCredentials: true in frontend
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Cache-Control', 'Pragma'],
 };
-app.use(cors(corsOptions));
-*/
-// PROD
 
-app.use(cors());
+app.use(cors(corsOptions));
 
 
 app.use(express.json());
