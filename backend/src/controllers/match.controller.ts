@@ -267,17 +267,72 @@ class MatchController {
 
     static async getMatchs(req: Request, res: Response) {
         try {
-            const matchesCol = collection(db, Tables.matches);
-            const matchesSnapshot = await getDocs(matchesCol);
-            const matchesList = matchesSnapshot.docs.map(doc => {
-                const data = doc.data();
-                return {
-                    id: doc.id,
-                    ...data
-                };
-            });
-            return res.json(matchesList);
+            console.log("[getMatchs] Fetching matches directly from external APIs...");
+            
+            // Fetch from HKJC API
+            const hkjc: HKJC[] = await ApiHKJC();
+            console.log("[getMatchs] HKJC API returned", hkjc.length, "matches");
+            
+            if (hkjc.length === 0) {
+                return res.json([]);
+            }
+
+            const ids = hkjc.map((x) => x.id);
+            
+            // Fetch from FootyLogic API
+            const result = await API.GET(Global.footylogicGames);
+            console.log("[getMatchs] FootyLogic API status:", result.status);
+            
+            if (result.status !== 200) {
+                return res.status(500).json({ error: "Failed to fetch matches from FootyLogic API" });
+            }
+
+            const dataLogic: FootyLogic = result.data;
+            const footylogic: Daum[] = dataLogic.data
+                .map((daum) => {
+                    const filteredEvents = daum.events
+                        .filter((event) => ids.includes(event.eventId))
+                        .sort((a, b) =>
+                            new Date(b.kickOff.replace(" ", "T")).getTime() -
+                            new Date(a.kickOff.replace(" ", "T")).getTime()
+                        );
+                    return {
+                        ...daum,
+                        events: filteredEvents
+                    };
+                })
+                .filter((daum) => daum.events.length > 0);
+
+            // Flatten matches from all days
+            const allMatches: Match[] = [];
+            for (const daum of footylogic) {
+                for (const event of daum.events) {
+                    const hkjcMatch = hkjc.find((x) => x.id === event.eventId);
+                    const match: Match = {
+                        ...event,
+                        id: event.eventId,
+                        eventId: event.eventId,
+                        kickOffDate: daum.label,
+                    } as Match;
+
+                    // Add HKJC data if available (HKJC has Chinese names)
+                    if (hkjcMatch) {
+                        if (hkjcMatch.homeTeam?.name_ch) {
+                            match.homeTeamName = hkjcMatch.homeTeam.name_ch;
+                        }
+                        if (hkjcMatch.awayTeam?.name_ch) {
+                            match.awayTeamName = hkjcMatch.awayTeam.name_ch;
+                        }
+                    }
+
+                    allMatches.push(match);
+                }
+            }
+
+            console.log("[getMatchs] Returning", allMatches.length, "matches directly from APIs");
+            return res.json(allMatches);
         } catch (error) {
+            console.error("[getMatchs] Error fetching matches:", error);
             return res.status(500).json({ error: error });
         }
     }
