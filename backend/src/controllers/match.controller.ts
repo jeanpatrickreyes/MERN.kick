@@ -305,6 +305,9 @@ class MatchController {
 
             // Flatten matches from all days
             const allMatches: Match[] = [];
+            const matchDetailsPromises: Promise<any>[] = [];
+            
+            // First, create all match objects
             for (const daum of footylogic) {
                 for (const event of daum.events) {
                     const hkjcMatch = hkjc.find((x) => x.id === event.eventId);
@@ -326,8 +329,54 @@ class MatchController {
                     }
 
                     allMatches.push(match);
+                    
+                    // Add promise to fetch details in parallel
+                    matchDetailsPromises.push(
+                        API.GET(Global.footylogicDetails + event.eventId)
+                            .then(resultDetails => ({ eventId: event.eventId, resultDetails }))
+                            .catch(error => ({ eventId: event.eventId, error }))
+                    );
                 }
             }
+
+            // Fetch all match details in parallel
+            console.log(`[getMatchs] Fetching details for ${matchDetailsPromises.length} matches in parallel...`);
+            const detailsResults = await Promise.all(matchDetailsPromises);
+
+            // Map details to matches
+            const detailsMap = new Map();
+            detailsResults.forEach(({ eventId, resultDetails, error }) => {
+                if (error) {
+                    console.error(`[getMatchs] Error fetching details for match ${eventId}:`, error);
+                    return;
+                }
+                if (resultDetails.status === 200 && resultDetails.data.statusCode === 200) {
+                    detailsMap.set(eventId, resultDetails.data.data);
+                }
+            });
+
+            // Apply details to matches
+            allMatches.forEach(match => {
+                const footylogicDetails = detailsMap.get(match.eventId);
+                if (footylogicDetails) {
+                    if (footylogicDetails.homeTeamLogo && footylogicDetails.awayTeamLogo) {
+                        match.homeTeamLogo = Global.footylogicImg + footylogicDetails.homeTeamLogo + ".png";
+                        match.awayTeamLogo = Global.footylogicImg + footylogicDetails.awayTeamLogo + ".png";
+                    }
+                    if (footylogicDetails.homeTeamName) {
+                        match.homeTeamNameEn = footylogicDetails.homeTeamName;
+                    }
+                    if (footylogicDetails.awayTeamName) {
+                        match.awayTeamNameEn = footylogicDetails.awayTeamName;
+                    }
+                    if (footylogicDetails.homeTeamId) {
+                        match.homeTeamId = footylogicDetails.homeTeamId;
+                    }
+                    if (footylogicDetails.awayTeamId) {
+                        match.awayTeamId = footylogicDetails.awayTeamId;
+                    }
+                }
+            });
 
             console.log("[getMatchs] Returning", allMatches.length, "matches directly from APIs");
             return res.json(allMatches);
