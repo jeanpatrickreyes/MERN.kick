@@ -67,9 +67,10 @@ export function CardMatch({
         <>
             <div
                 onClick={handleClick}
-                className="flex rounded-xl sm:h-32 h-22 border-none backdrop-blur-md bg-gradient-to-l from-white/40 via-white/80 to-white 
-                 shadow-xl hover:shadow-2xl drop-shadow-lg overflow-hidden transform transition-transform duration-300 
-                 hover:scale-105 cursor-pointer w-full mx-auto"
+                className="flex rounded-xl sm:h-32 h-22 border-none backdrop-blur-sm bg-gradient-to-l from-white/40 via-white/80 to-white 
+                 shadow-xl hover:shadow-2xl overflow-hidden transition-all duration-300 
+                 hover:scale-[1.02] cursor-pointer w-full mx-auto"
+                style={{ willChange: 'transform' }}
             >
                 <div className="bg-black text-white sm:w-14 w-9 flex flex-col items-center justify-start py-4 text-center">
                     <span className="sm:text-3xl text-1xl font-bold leading-none">{day}</span>
