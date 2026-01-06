@@ -12,6 +12,11 @@ export const useProbability = (
             const res = await API.GET(
                 AppGlobal.baseURL + "match/match-data/" + id);
             if (res.status === 200 && res.data) return res.data;
-        }
+            throw new Error(`Failed to fetch match details: ${res.status}`);
+        },
+        refetchOnMount: false,
+        refetchOnWindowFocus: false,
+        staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
+        gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
     });
 };

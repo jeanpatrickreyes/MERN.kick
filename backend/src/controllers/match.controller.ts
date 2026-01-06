@@ -267,8 +267,40 @@ class MatchController {
 
     static async getMatchs(req: Request, res: Response) {
         try {
-            console.log("[getMatchs] Fetching matches directly from external APIs...");
+            const refresh = req.query.refresh === 'true';
+            console.log("[getMatchs] Request received, refresh:", refresh);
             
+            // First, try to get matches from database
+            if (!refresh) {
+                const matchesCol = collection(db, Tables.matches);
+                const matchesSnapshot = await getDocs(matchesCol);
+                
+                if (!matchesSnapshot.empty) {
+                    const matchesList = matchesSnapshot.docs.map(doc => {
+                        const data = doc.data();
+                        return {
+                            id: doc.id,
+                            kickOff: data.kickOff,
+                            ...data
+                        };
+                    });
+
+                    // Sort by kickOff date
+                    const sortedMatches = matchesList.sort((a, b) => {
+                        const dateA = new Date(a.kickOff);
+                        const dateB = new Date(b.kickOff);
+                        return dateA.getTime() - dateB.getTime();
+                    });
+
+                    console.log("[getMatchs] Returning", sortedMatches.length, "matches from database");
+                    return res.json(sortedMatches);
+                }
+                console.log("[getMatchs] No matches in database, fetching from APIs...");
+            } else {
+                console.log("[getMatchs] Refresh requested, fetching from APIs...");
+            }
+            
+            // If DB is empty or refresh requested, fetch from APIs
             // Fetch from HKJC API
             const hkjc: HKJC[] = await ApiHKJC();
             console.log("[getMatchs] HKJC API returned", hkjc.length, "matches");
@@ -378,7 +410,21 @@ class MatchController {
                 }
             });
 
-            console.log("[getMatchs] Returning", allMatches.length, "matches directly from APIs");
+            // Save matches to database
+            console.log("[getMatchs] Saving", allMatches.length, "matches to database...");
+            const batch = writeBatch(db);
+            allMatches.forEach(match => {
+                const matchRef = doc(db, Tables.matches, match.eventId);
+                batch.set(matchRef, match);
+            });
+            try {
+                await batch.commit();
+                console.log("[getMatchs] Successfully saved matches to database");
+            } catch (error) {
+                console.error("[getMatchs] Error saving matches to database:", error);
+            }
+
+            console.log("[getMatchs] Returning", allMatches.length, "matches from APIs");
             return res.json(allMatches);
         } catch (error) {
             console.error("[getMatchs] Error fetching matches:", error);
@@ -388,10 +434,40 @@ class MatchController {
 
     static async getMatchDetails(req: Request, res: Response) {
         const { id } = req.params; // id is eventId
-        console.log("[getMatchDetails] Fetching match details for eventId:", id);
+        const refresh = req.query.refresh === 'true';
+        console.log("[getMatchDetails] Fetching match details for eventId:", id, "refresh:", refresh);
         try {
-            // Fetch match from FootyLogic API instead of database
-            const resultDetails = await API.GET(Global.footylogicDetails + id);
+            // First, try to get match from database
+            let existingMatchData: Match | null = null;
+            if (!refresh) {
+                const matchRef = doc(db, Tables.matches, id);
+                const matchSnap = await getDoc(matchRef);
+                
+                if (matchSnap.exists()) {
+                    existingMatchData = matchSnap.data() as Match;
+                    // Check if match has all required fields (especially lastGames for details page)
+                    if (existingMatchData.lastGames && existingMatchData.lastGames.homeTeam && existingMatchData.lastGames.awayTeam) {
+                        console.log("[getMatchDetails] Returning complete match from database");
+                        return res.json(existingMatchData);
+                    } else {
+                        console.log("[getMatchDetails] Match found in database but missing lastGames, will fetch from APIs to complete...");
+                        // Continue to fetch from API to complete the data, but use existing matchData as base
+                    }
+                } else {
+                    console.log("[getMatchDetails] Match not found in database, fetching from APIs...");
+                }
+            } else {
+                console.log("[getMatchDetails] Refresh requested, fetching from APIs...");
+            }
+            
+            // If not in DB or refresh requested, fetch from APIs
+            // Parallelize independent API calls for better performance
+            console.log("[getMatchDetails] Starting parallel API calls...");
+            const [resultDetails, gamesResult, hkjcData] = await Promise.all([
+                API.GET(Global.footylogicDetails + id).catch(err => ({ status: 500, data: null, error: err })),
+                API.GET(Global.footylogicGames).catch(err => ({ status: 500, data: null, error: err })),
+                ApiHKJC().catch(err => { console.error("[getMatchDetails] Error fetching HKJC:", err); return []; })
+            ]);
             
             if (resultDetails.status !== 200 || !resultDetails.data || resultDetails.data.statusCode !== 200) {
                 console.error("[getMatchDetails] FootyLogic Details API error:", {
@@ -409,29 +485,18 @@ class MatchController {
                 return res.status(404).json({ error: 'Match details not found' });
             }
             
-            // Fetch from FootyLogic Games to get basic match info
+            // Extract match event from games result
             let matchEvent: any = null;
-            try {
-                const gamesResult = await API.GET(Global.footylogicGames);
-                
-                if (gamesResult.status === 200 && gamesResult.data && gamesResult.data.data) {
-                    for (const daum of gamesResult.data.data) {
-                        if (daum.events && Array.isArray(daum.events)) {
-                            const event = daum.events.find((e: any) => e.eventId === id);
-                            if (event) {
-                                matchEvent = event;
-                                break;
-                            }
+            if (gamesResult.status === 200 && gamesResult.data && gamesResult.data.data) {
+                for (const daum of gamesResult.data.data) {
+                    if (daum.events && Array.isArray(daum.events)) {
+                        const event = daum.events.find((e: any) => e.eventId === id);
+                        if (event) {
+                            matchEvent = event;
+                            break;
                         }
                     }
-                } else {
-                    console.warn("[getMatchDetails] FootyLogic Games API returned non-200 or invalid data:", {
-                        status: gamesResult.status,
-                        hasData: !!gamesResult.data
-                    });
                 }
-            } catch (error) {
-                console.error("[getMatchDetails] Error fetching games:", error);
             }
 
             // If matchEvent not found, use data from details API
@@ -448,7 +513,8 @@ class MatchController {
             }
 
             // Build match data from API responses
-            let matchData: Match = {
+            // If we have existing matchData from DB, merge it; otherwise create new
+            let matchDataFromAPI: Match = {
                 ...matchEvent,
                 id: id,
                 eventId: id,
@@ -463,10 +529,12 @@ class MatchController {
                 homeTeamId: footylogicDetails.homeTeamId,
                 awayTeamId: footylogicDetails.awayTeamId,
             } as Match;
+            
+            // Merge with existing matchData from DB if it exists (preserve DB data, override with API data)
+            const matchData: Match = existingMatchData ? { ...existingMatchData, ...matchDataFromAPI } : matchDataFromAPI;
 
-            // Fetch HKJC data for Chinese names
-            const hkjc: HKJC[] = await ApiHKJC();
-            const hkjcMatch = hkjc.find((x) => x.id === id);
+            // Apply HKJC data for Chinese names (already fetched in parallel)
+            const hkjcMatch = hkjcData.find((x) => x.id === id);
             if (hkjcMatch) {
                 if (hkjcMatch.homeTeam?.name_ch) {
                     matchData.homeTeamName = hkjcMatch.homeTeam.name_ch;
@@ -476,22 +544,27 @@ class MatchController {
                 }
             }
 
-            // Add language support
+            // Add language support (use existing if available, otherwise convert)
             const homeZh = matchData.homeTeamName ?? "";
             const awayZh = matchData.awayTeamName ?? "";
-            let homeZhCN = homeZh;
-            let awayZhCN = awayZh;
             
-            try {
-                const [homeZhCNResult, awayZhCNResult] = await Promise.all([
-                    convertToSimplifiedChinese(homeZh),
-                    convertToSimplifiedChinese(awayZh)
-                ]);
-                homeZhCN = homeZhCNResult || homeZh;
-                awayZhCN = awayZhCNResult || awayZh;
-            } catch (error) {
-                console.error("[getMatchDetails] Error converting to simplified Chinese:", error);
-                // Continue with original names if conversion fails
+            // Use existing language data if available, otherwise convert
+            let homeZhCN = existingMatchData?.homeLanguages?.zhCN || homeZh;
+            let awayZhCN = existingMatchData?.awayLanguages?.zhCN || awayZh;
+            
+            // Only convert if not already in DB (parallel with other operations)
+            if (!existingMatchData?.homeLanguages?.zhCN || !existingMatchData?.awayLanguages?.zhCN) {
+                try {
+                    const [homeZhCNResult, awayZhCNResult] = await Promise.all([
+                        convertToSimplifiedChinese(homeZh).catch(() => homeZh),
+                        convertToSimplifiedChinese(awayZh).catch(() => awayZh)
+                    ]);
+                    homeZhCN = homeZhCNResult || homeZh;
+                    awayZhCN = awayZhCNResult || awayZh;
+                } catch (error) {
+                    console.error("[getMatchDetails] Error converting to simplified Chinese:", error);
+                    // Use original names if conversion fails
+                }
             }
 
             matchData.homeLanguages = {
@@ -506,12 +579,53 @@ class MatchController {
                 zhCN: awayZhCN
             };
 
-            // Fetch fixture information
+            // Determine what needs to be fetched
+            const needsFixture = !matchData.fixture_id;
+            const needsPredictions = !matchData.predictions || !matchData.predictions.homeWinRate;
+            const needsLastGames = !matchData.lastGames || !matchData.lastGames.homeTeam || !matchData.lastGames.awayTeam;
+            
+            // Prepare parallel fetch promises for what's needed
+            const fetchPromises: Promise<any>[] = [];
+            
+            // Fetch fixture information if needed
             let fixture_id = matchData.fixture_id;
-            if (!fixture_id) {
-                try {
-                    const fixture = await GetFixture(matchData);
-                    if (fixture && fixture.id) {
+            if (needsFixture) {
+                fetchPromises.push(
+                    (async () => {
+                        try {
+                            const fixture = await GetFixture(matchData);
+                            if (fixture && fixture.id) {
+                                return { type: 'fixture', data: fixture };
+                            }
+                        } catch (error) {
+                            console.error("[getMatchDetails] Error in GetFixture:", error);
+                        }
+                        return null;
+                    })()
+                );
+            }
+            
+            // Fetch last games if needed (can be done in parallel with fixture)
+            if (needsLastGames && matchData.homeTeamId && matchData.awayTeamId) {
+                fetchPromises.push(
+                    API.GET(Global.footylogicRecentForm + "&homeTeamId="
+                        + matchData.homeTeamId + "&awayTeamId=" + matchData.awayTeamId + "&marketGroupId=1&optionIdH=1&optionIdA=1&mode=1")
+                        .then(result => ({ type: 'lastGames', data: result }))
+                        .catch(error => {
+                            console.error("[getMatchDetails] Error fetching last games:", error);
+                            return null;
+                        })
+                );
+            }
+            
+            // Execute parallel fetches
+            const fetchResults = await Promise.all(fetchPromises);
+            
+            // Process fixture results
+            for (const result of fetchResults) {
+                if (result && result.type === 'fixture' && result.data) {
+                    const fixture = result.data;
+                    if (fixture.id) {
                         if (!matchData.homeTeamLogo) {
                             matchData.homeTeamLogo = fixture.homeLogo;
                         }
@@ -522,11 +636,10 @@ class MatchController {
                         matchData.fixture_id = fixture.id;
                         fixture_id = fixture.id;
                     }
-                } catch (error) {
-                    console.error("[getMatchDetails] Error in GetFixture:", error);
-                    // Continue without fixture - not critical
                 }
             }
+            
+            // If still no fixture_id, try alternative method
             if (!fixture_id && matchData.kickOffDate) {
                 try {
                     const [month, day, year] = matchData.kickOffDate.split("/");
@@ -534,10 +647,7 @@ class MatchController {
                         const formattedDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
                         let team = await ApiFixtureByDate(formattedDate);
                         
-                        // Validate team is an array before passing to matchTeamSimilarity
-                        if (!team || !Array.isArray(team) || team.length === 0) {
-                            console.warn("[getMatchDetails] No fixtures found for date:", formattedDate);
-                        } else {
+                        if (team && Array.isArray(team) && team.length > 0) {
                             const fixture = await matchTeamSimilarity(team, matchData.homeTeamNameEn ?? "", matchData.awayTeamNameEn ?? "");
                             if (fixture && fixture.id) {
                                 if (!matchData.homeTeamLogo && fixture.homeLogo) {
@@ -560,28 +670,37 @@ class MatchController {
                     console.error("[getMatchDetails] Error fetching fixture by date:", error);
                 }
             }
-
-            // Fetch predictions
-            if (fixture_id && (!matchData.predictions || !matchData.predictions.homeWinRate)) {
-                const predictions = await Predictions(fixture_id);
-                if (predictions) {
-                    matchData.predictions = predictions;
-                }
-            }
-
-            // Fetch last games
-            if (matchData.homeTeamId && matchData.awayTeamId) {
-                try {
-                    const resultLastGames = await API.GET(Global.footylogicRecentForm + "&homeTeamId="
-                        + matchData.homeTeamId + "&awayTeamId=" + matchData.awayTeamId + "&marketGroupId=1&optionIdH=1&optionIdA=1&mode=1");
+            
+            // Process last games results
+            for (const result of fetchResults) {
+                if (result && result.type === 'lastGames' && result.data) {
+                    const resultLastGames = result.data;
                     if (resultLastGames.status === 200 && resultLastGames.data.statusCode === 200) {
                         const resultRecentForm = resultLastGames.data.data;
                         const lastGames = parseToInformationForm(resultRecentForm, matchData.homeTeamName ?? "", matchData.awayTeamName ?? "");
                         matchData.lastGames = lastGames;
                     }
-                } catch (error) {
-                    console.error("[getMatchDetails] Error fetching last games:", error);
                 }
+            }
+            
+            // Fetch predictions only if needed and we have fixture_id
+            if (needsPredictions && fixture_id) {
+                try {
+                    const predictions = await Predictions(fixture_id);
+                    if (predictions) {
+                        matchData.predictions = predictions;
+                    }
+                } catch (error) {
+                    console.error("[getMatchDetails] Error fetching predictions:", error);
+                }
+            } else if (existingMatchData?.predictions) {
+                // Preserve predictions from existing data
+                matchData.predictions = existingMatchData.predictions;
+            }
+
+            // Preserve ia from existing data if it exists
+            if (existingMatchData?.ia) {
+                matchData.ia = existingMatchData.ia;
             }
 
             let homeWin = Math.round(matchData.ia?.home ?? matchData.predictions?.homeWinRate ?? 0);
@@ -601,6 +720,14 @@ class MatchController {
                 matchData.predictions.awayWinRate = awayWin;
             }
 
+            // Save match to database
+            try {
+                const matchRef = doc(db, Tables.matches, id);
+                await setDoc(matchRef, matchData, { merge: true });
+                console.log("[getMatchDetails] Successfully saved match to database");
+            } catch (error) {
+                console.error("[getMatchDetails] Error saving match to database:", error);
+            }
 
             return res.json(matchData);
         } catch (error: any) {

@@ -151,12 +151,8 @@ export const API = {
             headers: {
                 'Content-type': 'application/json; charset=UTF-8',
                 'Authorization': 'Bearer ' + token,
-                'Cache-Control': 'no-cache',
-                'Pragma': 'no-cache',
                 ..._headers
             },
-            // Force fresh request, bypass HTTP cache
-            params: headers?.noCache ? { _t: Date.now() } : undefined,
         }
         ).then((res) => {
             response = res;
