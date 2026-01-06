@@ -387,53 +387,200 @@ class MatchController {
     }
 
     static async getMatchDetails(req: Request, res: Response) {
-        const { id } = req.params;
+        const { id } = req.params; // id is eventId
+        console.log("[getMatchDetails] Fetching match details for eventId:", id);
         try {
-            const matchRef = doc(db, Tables.matches, id);
-            const matchSnap = await getDoc(matchRef)
-            if (!matchSnap.exists()) {
+            // Fetch match from FootyLogic API instead of database
+            const resultDetails = await API.GET(Global.footylogicDetails + id);
+            
+            if (resultDetails.status !== 200 || !resultDetails.data || resultDetails.data.statusCode !== 200) {
+                console.error("[getMatchDetails] FootyLogic Details API error:", {
+                    status: resultDetails.status,
+                    statusCode: resultDetails.data?.statusCode,
+                    data: resultDetails.data
+                });
                 return res.status(404).json({ error: 'Match not found' });
             }
-            let matchData = matchSnap.data() as Match;
 
+            const footylogicDetails = resultDetails.data.data;
+            
+            if (!footylogicDetails) {
+                console.error("[getMatchDetails] FootyLogic details data is null/undefined");
+                return res.status(404).json({ error: 'Match details not found' });
+            }
+            
+            // Fetch from FootyLogic Games to get basic match info
+            let matchEvent: any = null;
+            try {
+                const gamesResult = await API.GET(Global.footylogicGames);
+                
+                if (gamesResult.status === 200 && gamesResult.data && gamesResult.data.data) {
+                    for (const daum of gamesResult.data.data) {
+                        if (daum.events && Array.isArray(daum.events)) {
+                            const event = daum.events.find((e: any) => e.eventId === id);
+                            if (event) {
+                                matchEvent = event;
+                                break;
+                            }
+                        }
+                    }
+                } else {
+                    console.warn("[getMatchDetails] FootyLogic Games API returned non-200 or invalid data:", {
+                        status: gamesResult.status,
+                        hasData: !!gamesResult.data
+                    });
+                }
+            } catch (error) {
+                console.error("[getMatchDetails] Error fetching games:", error);
+            }
+
+            // If matchEvent not found, use data from details API
+            if (!matchEvent) {
+                console.warn("[getMatchDetails] Match event not found in games API, using details data only");
+                matchEvent = {
+                    eventId: id,
+                    kickOff: footylogicDetails.kickOffTime || "",
+                    kickOffDate: footylogicDetails.kickOffTime ? footylogicDetails.kickOffTime.split(' ')[0] : "",
+                    homeTeamName: footylogicDetails.homeTeamName,
+                    awayTeamName: footylogicDetails.awayTeamName,
+                    competitionName: footylogicDetails.competitionName || "",
+                };
+            }
+
+            // Build match data from API responses
+            let matchData: Match = {
+                ...matchEvent,
+                id: id,
+                eventId: id,
+                homeTeamLogo: footylogicDetails.homeTeamLogo 
+                    ? Global.footylogicImg + footylogicDetails.homeTeamLogo + ".png" 
+                    : undefined,
+                awayTeamLogo: footylogicDetails.awayTeamLogo 
+                    ? Global.footylogicImg + footylogicDetails.awayTeamLogo + ".png" 
+                    : undefined,
+                homeTeamNameEn: footylogicDetails.homeTeamName || matchEvent.homeTeamName,
+                awayTeamNameEn: footylogicDetails.awayTeamName || matchEvent.awayTeamName,
+                homeTeamId: footylogicDetails.homeTeamId,
+                awayTeamId: footylogicDetails.awayTeamId,
+            } as Match;
+
+            // Fetch HKJC data for Chinese names
+            const hkjc: HKJC[] = await ApiHKJC();
+            const hkjcMatch = hkjc.find((x) => x.id === id);
+            if (hkjcMatch) {
+                if (hkjcMatch.homeTeam?.name_ch) {
+                    matchData.homeTeamName = hkjcMatch.homeTeam.name_ch;
+                }
+                if (hkjcMatch.awayTeam?.name_ch) {
+                    matchData.awayTeamName = hkjcMatch.awayTeam.name_ch;
+                }
+            }
+
+            // Add language support
+            const homeZh = matchData.homeTeamName ?? "";
+            const awayZh = matchData.awayTeamName ?? "";
+            let homeZhCN = homeZh;
+            let awayZhCN = awayZh;
+            
+            try {
+                const [homeZhCNResult, awayZhCNResult] = await Promise.all([
+                    convertToSimplifiedChinese(homeZh),
+                    convertToSimplifiedChinese(awayZh)
+                ]);
+                homeZhCN = homeZhCNResult || homeZh;
+                awayZhCN = awayZhCNResult || awayZh;
+            } catch (error) {
+                console.error("[getMatchDetails] Error converting to simplified Chinese:", error);
+                // Continue with original names if conversion fails
+            }
+
+            matchData.homeLanguages = {
+                en: matchData.homeTeamNameEn || matchData.homeTeamName || "",
+                zh: homeZh,
+                zhCN: homeZhCN
+            };
+
+            matchData.awayLanguages = {
+                en: matchData.awayTeamNameEn || matchData.awayTeamName || "",
+                zh: awayZh,
+                zhCN: awayZhCN
+            };
+
+            // Fetch fixture information
             let fixture_id = matchData.fixture_id;
             if (!fixture_id) {
-                const fixture = await GetFixture(matchData);
-                if (fixture) {
-                    if (!matchData.homeTeamLogo) {
-                        matchData.homeTeamLogo = fixture.homeLogo;
-                    }
-                    if (!matchData.awayTeamLogo) {
-                        matchData.awayTeamLogo = fixture.awayLogo;
-                    }
-                    matchData.league_id = fixture.league_id,
+                try {
+                    const fixture = await GetFixture(matchData);
+                    if (fixture && fixture.id) {
+                        if (!matchData.homeTeamLogo) {
+                            matchData.homeTeamLogo = fixture.homeLogo;
+                        }
+                        if (!matchData.awayTeamLogo) {
+                            matchData.awayTeamLogo = fixture.awayLogo;
+                        }
+                        matchData.league_id = fixture.league_id;
                         matchData.fixture_id = fixture.id;
-                    fixture_id = fixture.id;
+                        fixture_id = fixture.id;
+                    }
+                } catch (error) {
+                    console.error("[getMatchDetails] Error in GetFixture:", error);
+                    // Continue without fixture - not critical
                 }
             }
-            if (!fixture_id) {
-                const [month, day, year] = matchData.kickOffDate.split("/");
-                const formattedDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-                let team = await ApiFixtureByDate(formattedDate);
-                const fixture = await matchTeamSimilarity(team, matchData.homeTeamNameEn ?? "", matchData.awayTeamNameEn ?? "");
-                if (fixture) {
-                    if (!matchData.homeTeamLogo) {
-                        matchData = fixture.homeLogo;
+            if (!fixture_id && matchData.kickOffDate) {
+                try {
+                    const [month, day, year] = matchData.kickOffDate.split("/");
+                    if (month && day && year) {
+                        const formattedDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+                        let team = await ApiFixtureByDate(formattedDate);
+                        
+                        // Validate team is an array before passing to matchTeamSimilarity
+                        if (!team || !Array.isArray(team) || team.length === 0) {
+                            console.warn("[getMatchDetails] No fixtures found for date:", formattedDate);
+                        } else {
+                            const fixture = await matchTeamSimilarity(team, matchData.homeTeamNameEn ?? "", matchData.awayTeamNameEn ?? "");
+                            if (fixture && fixture.id) {
+                                if (!matchData.homeTeamLogo && fixture.homeLogo) {
+                                    matchData.homeTeamLogo = fixture.homeLogo;
+                                }
+                                if (!matchData.awayTeamLogo && fixture.awayLogo) {
+                                    matchData.awayTeamLogo = fixture.awayLogo;
+                                }
+                                if (fixture.league_id) {
+                                    matchData.league_id = fixture.league_id;
+                                }
+                                if (fixture.id) {
+                                    matchData.fixture_id = fixture.id;
+                                    fixture_id = fixture.id;
+                                }
+                            }
+                        }
                     }
-                    if (!matchData.awayTeamLogo) {
-                        matchData = fixture.awayLogo;
-                    }
-                    matchData.league_id = fixture.league_id,
-                        matchData.fixture_id = fixture.id;
-                    fixture_id = fixture.id;
+                } catch (error) {
+                    console.error("[getMatchDetails] Error fetching fixture by date:", error);
+                }
+            }
 
-                }
-            }
-            if ((!matchData.predictions || !matchData.predictions.homeWinRate) && fixture_id) {
+            // Fetch predictions
+            if (fixture_id && (!matchData.predictions || !matchData.predictions.homeWinRate)) {
                 const predictions = await Predictions(fixture_id);
                 if (predictions) {
                     matchData.predictions = predictions;
-                    await setDoc(matchRef, matchData, { merge: true });
+                }
+            }
+
+            // Fetch last games
+            if (matchData.homeTeamId && matchData.awayTeamId) {
+                try {
+                    const resultLastGames = await API.GET(Global.footylogicRecentForm + "&homeTeamId="
+                        + matchData.homeTeamId + "&awayTeamId=" + matchData.awayTeamId + "&marketGroupId=1&optionIdH=1&optionIdA=1&mode=1");
+                    if (resultLastGames.status === 200 && resultLastGames.data.statusCode === 200) {
+                        const resultRecentForm = resultLastGames.data.data;
+                        const lastGames = parseToInformationForm(resultRecentForm, matchData.homeTeamName ?? "", matchData.awayTeamName ?? "");
+                        matchData.lastGames = lastGames;
+                    }
+                } catch (error) {
+                    console.error("[getMatchDetails] Error fetching last games:", error);
                 }
             }
 
@@ -456,9 +603,15 @@ class MatchController {
 
 
             return res.json(matchData);
-        } catch (error) {
-            console.error('Error fetching match details:', error);
-            return res.status(500).json({ error: 'Internal server error' });
+        } catch (error: any) {
+            console.error('[getMatchDetails] Error fetching match details:', error);
+            console.error('[getMatchDetails] Error stack:', error?.stack);
+            console.error('[getMatchDetails] Error message:', error?.message);
+            return res.status(500).json({ 
+                error: 'Internal server error',
+                message: error?.message || 'Unknown error',
+                eventId: id
+            });
         }
     }
 

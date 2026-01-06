@@ -43,7 +43,8 @@ export const ApiFixtureByDate = async (date: string): Promise<Fixture[] | undefi
         }
         return fixtures;
     } catch (error) {
-        console.error(`Error fetching data for date 2: ${error}`);
+        console.error(`Error fetching data for date ${date}: ${error}`);
+        return []; // Return empty array instead of undefined
     }
 };
 

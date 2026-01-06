@@ -1,6 +1,11 @@
 import stringSimilarity from 'string-similarity';
 
 export const matchTeamSimilarity = (fixtures: any, homeName: string, awayName: string) => {
+    // Validate fixtures is an array
+    if (!fixtures || !Array.isArray(fixtures) || fixtures.length === 0) {
+        return null;
+    }
+    
     let bestMatch = null;
     let highestScore = 0;
     for (let fix of fixtures) {
