@@ -335,6 +335,42 @@ class MatchController {
                 })
                 .filter((daum) => daum.events.length > 0);
 
+            // Delete old matches that are no longer in the API response
+            console.log("[getMatchs] Checking for old matches to delete...");
+            const existingMatchesCol = collection(db, Tables.matches);
+            const existingMatchesSnapshot = await getDocs(existingMatchesCol);
+            const existingMatchesList = existingMatchesSnapshot.docs.map(doc => {
+                const data = doc.data();
+                return {
+                    id: doc.id,
+                    eventId: data.eventId,
+                    kickOffDate: data.kickOffDate
+                };
+            });
+
+            // Get valid date labels from footylogic
+            const validLabels = footylogic.map(d => d.label);
+            
+            // Delete matches with invalid dates (dates not in current API response)
+            const matchesWithInvalidDate = existingMatchesList.filter(m => !validLabels.includes(m.kickOffDate));
+            for (const match of matchesWithInvalidDate) {
+                console.log("[getMatchs] Deleting match with invalid date:", match.eventId, match.kickOffDate);
+                await deleteDoc(doc(db, Tables.matches, match.eventId));
+            }
+
+            // Delete matches that are no longer in the events list for their date
+            for (const daum of footylogic) {
+                const existingMatchesForDate = existingMatchesList.filter((x) => x.kickOffDate === daum.label);
+                const validEventIds = daum.events.map(ev => ev.eventId);
+                
+                for (const match of existingMatchesForDate) {
+                    if (!validEventIds.includes(match.eventId)) {
+                        console.log("[getMatchs] Deleting match no longer in API:", match.eventId);
+                        await deleteDoc(doc(db, Tables.matches, match.eventId));
+                    }
+                }
+            }
+
             // Flatten matches from all days
             const allMatches: Match[] = [];
             const matchDetailsPromises: Promise<any>[] = [];
