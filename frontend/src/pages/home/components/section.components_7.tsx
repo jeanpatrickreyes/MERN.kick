@@ -87,53 +87,63 @@ export default function SectionComponent7({
             </div>
 
 
-            <div className="flex gap-6 text-3xl text-gray-700">
-                <a onClick={admin ? () => handleIconClick(config?.instagram ?? "", "instagram") : () => {
-                    const url = config?.instagram ?? "/";
-                    const width = 1000;
-                    const height = 1000;
-                    const left = window.screen.width - width - 20;
-                    const top = window.screen.height - height - 20;
-                    window.open(url, "instagramWindow", `width=${width},height=${height},top=${top},left=${left},resizable=yes,scrollbars=yes`);
-                }} rel="noopener noreferrer">
-                    <FaInstagram className="hover:text-red-900 text-5xl text-white transition duration-300" />
-                </a>
-                <a onClick={admin ? () => handleIconClick(config?.threads ?? "", "threads") : () => {
-                    const url = config?.threads ?? "/";
-                    const width = 1000;
-                    const height = 1000;
-                    const left = window.screen.width - width - 20;
-                    const top = window.screen.height - height - 20;
-                    window.open(url, "threadsWindow", `width=${width},height=${height},top=${top},left=${left},resizable=yes,scrollbars=yes`);
-                }} rel="noopener noreferrer">
-                    <FaThreads className="hover:text-red-900 text-5xl text-white transition duration-300" />
-                </a>
-
-
-                <a onClick={admin ? () => handleIconClick(config?.telegram ?? "", "telegram") : () => {
-                    const url = config?.telegram ?? "/";
-                    const width = 1000;
-                    const height = 1000;
-                    const left = window.screen.width - width - 20;
-                    const top = window.screen.height - height - 20;
-                    window.open(url, "telegramWindow", `width=${width},height=${height},top=${top},left=${left},resizable=yes,scrollbars=yes`);
-                }} rel="noopener noreferrer">
-                    <FaTelegramPlane className="hover:text-red-900 text-5xl text-white transition duration-300" />
-                </a>
-                <a
-                    onClick={admin ? () => handleIconClick(config?.whatsapp ?? "", "whatsapp") : () => {
-                        const url = config?.whatsapp ?? "/";
+            {currentLang.code === "zhCN" ? (
+                // For Simplified Chinese: Show whatsapp-blue.jpg image
+                <div className="flex gap-6 text-3xl text-gray-700">
+                    <img 
+                        src="/whatsapp-blue.jpg" 
+                        alt="WhatsApp" 
+                        className="w-12 h-12 object-contain"
+                    />
+                </div>
+            ) : (
+                // For English and Traditional Chinese: Show the 4 icons
+                <div className="flex gap-6 text-3xl text-gray-700">
+                    <a onClick={admin ? () => handleIconClick(config?.instagram ?? "", "instagram") : () => {
+                        const url = config?.instagram ?? "/";
                         const width = 1000;
                         const height = 1000;
                         const left = window.screen.width - width - 20;
                         const top = window.screen.height - height - 20;
-                        window.open(url, "whatsappWindow", `width=${width},height=${height},top=${top},left=${left},resizable=yes,scrollbars=yes`);
-                    }}
-
-                    rel="noopener noreferrer"
-                >
-                    <FaWhatsapp className="hover:text-green-600 text-5xl text-white transition duration-300" />
-                </a>
+                        window.open(url, "instagramWindow", `width=${width},height=${height},top=${top},left=${left},resizable=yes,scrollbars=yes`);
+                    }} rel="noopener noreferrer">
+                        <FaInstagram className="hover:text-red-900 text-5xl text-white transition duration-300" />
+                    </a>
+                    <a onClick={admin ? () => handleIconClick(config?.threads ?? "", "threads") : () => {
+                        const url = config?.threads ?? "/";
+                        const width = 1000;
+                        const height = 1000;
+                        const left = window.screen.width - width - 20;
+                        const top = window.screen.height - height - 20;
+                        window.open(url, "threadsWindow", `width=${width},height=${height},top=${top},left=${left},resizable=yes,scrollbars=yes`);
+                    }} rel="noopener noreferrer">
+                        <FaThreads className="hover:text-red-900 text-5xl text-white transition duration-300" />
+                    </a>
+                    <a onClick={admin ? () => handleIconClick(config?.telegram ?? "", "telegram") : () => {
+                        const url = config?.telegram ?? "/";
+                        const width = 1000;
+                        const height = 1000;
+                        const left = window.screen.width - width - 20;
+                        const top = window.screen.height - height - 20;
+                        window.open(url, "telegramWindow", `width=${width},height=${height},top=${top},left=${left},resizable=yes,scrollbars=yes`);
+                    }} rel="noopener noreferrer">
+                        <FaTelegramPlane className="hover:text-red-900 text-5xl text-white transition duration-300" />
+                    </a>
+                    <a
+                        onClick={admin ? () => handleIconClick(config?.whatsapp ?? "", "whatsapp") : () => {
+                            const url = config?.whatsapp ?? "/";
+                            const width = 1000;
+                            const height = 1000;
+                            const left = window.screen.width - width - 20;
+                            const top = window.screen.height - height - 20;
+                            window.open(url, "whatsappWindow", `width=${width},height=${height},top=${top},left=${left},resizable=yes,scrollbars=yes`);
+                        }}
+                        rel="noopener noreferrer"
+                    >
+                        <FaWhatsapp className="hover:text-green-600 text-5xl text-white transition duration-300" />
+                    </a>
+                </div>
+            )}
 
 
                 {/* <a onClick={admin ? () => handleIconClick(config?.message ?? "", "message") : () => {
@@ -167,7 +177,6 @@ export default function SectionComponent7({
 
 
 
-            </div>
 
             <p className="mt-10 text-center max-w-md text-gray-200">
                 {t("Contact_com").toUpperCase()}

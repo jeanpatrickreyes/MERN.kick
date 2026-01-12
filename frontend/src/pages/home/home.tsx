@@ -11,6 +11,15 @@ import useIsMobile from "../../hooks/useIsMobile";
 import { useConfig } from "../../hooks/useConfig";
 import SectionComponent7 from "./components/section.components_7";
 import { FaTelegramPlane, FaWhatsapp } from "react-icons/fa";
+import i18n from "../../i18n";
+import { useEffect, useState } from "react";
+
+
+const languages = [
+    { code: "zh", label: "繁體中文", flag: "🇭🇰" },
+    { code: "zhCN", label: "简体中文", flag: "🇨🇳" },
+    { code: "en", label: "English", flag: "🇺🇸" },
+];
 
 
 export default function HomePage() {
@@ -18,6 +27,24 @@ export default function HomePage() {
     const { data, isLoading } = useMatchs();
     const { data: records, isError, isLoading: isLoadingRecords } = useRecords(1, isMobile ? 4 : 6);
     const { data: config } = useConfig();
+
+    const [currentLang, setCurrentLang] = useState(languages[0]);
+
+    useEffect(() => {
+        const lang =
+            languages.find(l => l.code === i18n.language) || languages[0];
+
+        setCurrentLang(lang);
+
+        const interval = setInterval(() => {
+            const lang =
+                languages.find(l => l.code === i18n.language) || languages[0];
+
+            setCurrentLang(lang);
+        }, 1000);
+
+        return () => clearInterval(interval);
+    }, [i18n.language]);
     return (isLoading || isLoadingRecords
         ?
         <Loading />
@@ -43,62 +70,97 @@ export default function HomePage() {
             <SectionComponent8 />
 
 
-            {config?.whatsapp ? (
+            {currentLang.code === "zhCN" ? (
+                // For Simplified Chinese: Show whatsapp-black.jpg image
                 <button
                     onClick={() => {
-                        const width = 600;
-                        const height = 800;
-                        const left = window.screen.width - width - 20;
-                        const top = window.screen.height - height - 100;
-                        window.open(
-                            config.whatsapp,
-                            "whatsappWindow",
-                            `width=${width},height=${height},top=${top},left=${left},resizable=yes,scrollbars=yes`
-                        );
+                        if (config?.whatsapp) {
+                            const width = 600;
+                            const height = 800;
+                            const left = window.screen.width - width - 20;
+                            const top = window.screen.height - height - 20;
+                            window.open(
+                                config.whatsapp,
+                                "whatsappWindow",
+                                `width=${width},height=${height},top=${top},left=${left},resizable=yes,scrollbars=yes`
+                            );
+                        }
                     }}
                     className="
-          fixed sm:bottom-52 bottom-36 sm:right-10 right-5 z-50 
-      bg-green-500 sm:p-5 p-3 rounded-full shadow-lg
-      hover:bg-green-600 transition-colors
-      flex items-center justify-center
-      transform
-      opacity-0 scale-90
-      animate-fadeInScale
-    "
+                        fixed sm:bottom-20 bottom-16 sm:right-10 right-5 z-50
+                        sm:p-5 p-3 rounded-full shadow-lg
+                        hover:opacity-80 transition-opacity
+                        flex items-center justify-center
+                        transform
+                        opacity-0 scale-90
+                        animate-fadeInScale
+                        bg-transparent border-none cursor-pointer
+                    "
                 >
-
-                    <FaWhatsapp className="text-white sm:text-4xl text-3xl pl-[3px]" />
-                </button>)
-                : undefined}
-
-
-            {config?.telegram ? (
-                <button
-                    onClick={() => {
-                        const width = 600;
-                        const height = 800;
-                        const left = window.screen.width - width - 20;
-                        const top = window.screen.height - height - 20;
-                        window.open(
-                            config.telegram,
-                            "telegramWindow",
-                            `width=${width},height=${height},top=${top},left=${left},resizable=yes,scrollbars=yes`
-                        );
-                    }}
-                    className="
-        fixed sm:bottom-28 bottom-20 sm:right-10 right-5 z-50
-      bg-[#229ED9] sm:p-5 p-3 rounded-full shadow-lg 
-      hover:bg-[#1e4555] transition-colors 
-      flex items-center justify-center
-      transform 
-      opacity-0 scale-90 
-      animate-fadeInScale
-    "
-                >
-                    <FaTelegramPlane className="text-white sm:text-4xl text-3xl pr-1" />
+                    <img 
+                        src="/whatsapp-black.jpg" 
+                        alt="WhatsApp" 
+                        className="sm:w-9 w-8 h-auto object-contain rounded-full"
+                    />
                 </button>
-            )
-                : undefined}
+            ) : (
+                // For English and Traditional Chinese: Show the 2 floating buttons
+                <>
+                    {config?.whatsapp ? (
+                        <button
+                            onClick={() => {
+                                const width = 600;
+                                const height = 800;
+                                const left = window.screen.width - width - 20;
+                                const top = window.screen.height - height - 100;
+                                window.open(
+                                    config.whatsapp,
+                                    "whatsappWindow",
+                                    `width=${width},height=${height},top=${top},left=${left},resizable=yes,scrollbars=yes`
+                                );
+                            }}
+                            className="
+                  fixed sm:bottom-52 bottom-36 sm:right-10 right-5 z-50 
+              bg-green-500 sm:p-5 p-3 rounded-full shadow-lg
+              hover:bg-green-600 transition-colors
+              flex items-center justify-center
+              transform
+              opacity-0 scale-90
+              animate-fadeInScale
+            "
+                        >
+                            <FaWhatsapp className="text-white sm:text-4xl text-3xl pl-[3px]" />
+                        </button>
+                    ) : undefined}
+
+                    {config?.telegram ? (
+                        <button
+                            onClick={() => {
+                                const width = 600;
+                                const height = 800;
+                                const left = window.screen.width - width - 20;
+                                const top = window.screen.height - height - 20;
+                                window.open(
+                                    config.telegram,
+                                    "telegramWindow",
+                                    `width=${width},height=${height},top=${top},left=${left},resizable=yes,scrollbars=yes`
+                                );
+                            }}
+                            className="
+                fixed sm:bottom-28 bottom-20 sm:right-10 right-5 z-50
+              bg-[#229ED9] sm:p-5 p-3 rounded-full shadow-lg 
+              hover:bg-[#1e4555] transition-colors 
+              flex items-center justify-center
+              transform 
+              opacity-0 scale-90 
+              animate-fadeInScale
+            "
+                        >
+                            <FaTelegramPlane className="text-white sm:text-4xl text-3xl pr-1" />
+                        </button>
+                    ) : undefined}
+                </>
+            )}
 
 
             {/* {
