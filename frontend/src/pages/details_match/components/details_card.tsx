@@ -15,9 +15,9 @@ function DetailsCardComponent({
 }: Props) {
     const { t } = useTranslation();
 
-    const homeWin = probability.ia && probability.ia.home ? probability.ia.home : probability.predictions.homeWinRate;
-    const awayWin = probability.ia && probability.ia.away ? probability.ia.away : probability.predictions.awayWinRate;
-    const draw = probability.ia && probability.ia.draw ? probability.ia.draw : parseFloat(parseFloat(probability.hadDrawPct).toFixed(2));
+    const homeWin = probability.ia && probability.ia.home ? probability.ia.home : (probability.predictions?.homeWinRate ?? 0);
+    const awayWin = probability.ia && probability.ia.away ? probability.ia.away : (probability.predictions?.awayWinRate ?? 0);
+    const draw = probability.ia && probability.ia.draw ? probability.ia.draw : parseFloat(parseFloat(probability.hadDrawPct || "0").toFixed(2));
 
     //HOME
     const homeStats = probability.lastGames.homeTeam;

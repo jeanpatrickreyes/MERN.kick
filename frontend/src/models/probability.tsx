@@ -5,7 +5,7 @@ export interface Probability {
   awayLanguages?: TeamLanguages;
   awayTeamId: number
   homeForm: string
-  predictions: Predictions
+  predictions?: Predictions
   awayTeamNameEn: string
   eventId: string
   condition: string

@@ -227,7 +227,7 @@ function DetailsMatchPage() {
 
                                     <div style={{ width: "20%", height: 2, backgroundColor: AppColors.primary }} />
                                 </div>
-                            </div> : data.predictions ?
+                            </div> : (data.predictions || data.ia) ?
                                 <DetailsCardComponent probability={data} />
                                 : <div />
                         }

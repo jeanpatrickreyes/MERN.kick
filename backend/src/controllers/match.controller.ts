@@ -801,8 +801,87 @@ class MatchController {
                 matchData.predictions = existingMatchData.predictions;
             }
 
-            // Preserve ia from existing data if it exists
-            if (existingMatchData?.ia) {
+            // Auto-generate IA if refresh is requested and we have the necessary data
+            const needsIA = !matchData.ia || !matchData.ia.home || !matchData.ia.away;
+            if (refresh && needsIA && matchData.homeForm && matchData.awayForm) {
+                try {
+                    console.log("[getMatchDetails] Auto-generating IA analysis for match:", id);
+                    let playersInjured = { home: [], away: [] };
+                    if (matchData.fixture_id && matchData.league_id && matchData.homeTeamId && matchData.awayTeamId) {
+                        try {
+                            playersInjured = await ApiTopScoreInjured(
+                                matchData.fixture_id, 
+                                matchData.league_id, 
+                                matchData.kickOff.split("-")[0], 
+                                matchData.homeTeamId, 
+                                matchData.awayTeamId
+                            );
+                        } catch (error) {
+                            console.warn("[getMatchDetails] Error fetching injured players, continuing without:", error);
+                        }
+                    }
+                    
+                    // Try to use predictions if available, otherwise use HKJC odds as fallback
+                    let homeWinRate: number | null = null;
+                    let awayWinRate: number | null = null;
+                    
+                    if (matchData.predictions?.homeWinRate && matchData.predictions?.awayWinRate) {
+                        homeWinRate = matchData.predictions.homeWinRate;
+                        awayWinRate = matchData.predictions.awayWinRate;
+                    } else if ((matchData as any).hadHomePct && (matchData as any).hadAwayPct) {
+                        // Use HKJC odds as fallback (from FootyLogic Event data)
+                        homeWinRate = parseFloat((matchData as any).hadHomePct);
+                        awayWinRate = parseFloat((matchData as any).hadAwayPct);
+                        console.log("[getMatchDetails] Using HKJC odds as fallback for IA generation:", homeWinRate, awayWinRate);
+                    }
+                    
+                    if (homeWinRate !== null && awayWinRate !== null) {
+                        // Try AI-based IA first if we have lastGames data
+                        if (matchData.lastGames && matchData.homeTeamNameEn && matchData.awayTeamNameEn) {
+                            try {
+                                const resultIa = await IaProbality(matchData, playersInjured);
+                                if (resultIa) {
+                                    const total = resultIa.home + resultIa.away;
+                                    const homeShare = resultIa.home / total;
+                                    const awayShare = resultIa.away / total;
+                                    const redistributedHome = resultIa.home + resultIa.draw * homeShare;
+                                    const redistributedAway = resultIa.away + resultIa.draw * awayShare;
+                                    matchData.ia = {
+                                        home: Number(redistributedHome.toFixed(2)),
+                                        away: Number(redistributedAway.toFixed(2)),
+                                        draw: resultIa.draw
+                                    };
+                                    console.log("[getMatchDetails] IA generated successfully using AI:", matchData.ia);
+                                }
+                            } catch (error) {
+                                console.warn("[getMatchDetails] AI IA generation failed, using calculation fallback:", error);
+                            }
+                        }
+                        
+                        // Fallback to CalculationProbality if AI failed or not available
+                        if (!matchData.ia) {
+                            try {
+                                const result = CalculationProbality(
+                                    playersInjured, 
+                                    homeWinRate, 
+                                    awayWinRate, 
+                                    matchData.homeForm.split(","), 
+                                    matchData.awayForm.split(",")
+                                );
+                                matchData.ia = result;
+                                console.log("[getMatchDetails] IA generated using CalculationProbality:", matchData.ia);
+                            } catch (error) {
+                                console.error("[getMatchDetails] Error generating IA with CalculationProbality:", error);
+                            }
+                        }
+                    } else {
+                        console.warn("[getMatchDetails] Cannot generate IA: missing predictions and HKJC odds for match:", id);
+                    }
+                } catch (error) {
+                    console.error("[getMatchDetails] Error auto-generating IA:", error);
+                }
+            } else if (existingMatchData?.ia) {
+                // Preserve ia from existing data if it exists and we're not refreshing
                 matchData.ia = existingMatchData.ia;
             }
 
