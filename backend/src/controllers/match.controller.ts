@@ -301,7 +301,7 @@ class MatchController {
             }
             
             // If DB is empty or refresh requested, fetch from APIs
-            // Fetch from HKJC API
+            // Fetch from HKJC API (primary source - should return all 61 matches)
             const hkjc: HKJC[] = await ApiHKJC();
             console.log("[getMatchs] HKJC API returned", hkjc.length, "matches");
             
@@ -309,33 +309,27 @@ class MatchController {
                 return res.json([]);
             }
 
-            const ids = hkjc.map((x) => x.id);
-            
-            // Fetch from FootyLogic API
-            const result = await API.GET(Global.footylogicGames);
-            console.log("[getMatchs] FootyLogic API status:", result.status);
-            
-            if (result.status !== 200) {
-                return res.status(500).json({ error: "Failed to fetch matches from FootyLogic API" });
+            // Fetch from FootyLogic API (optional enrichment)
+            let footylogicEventsMap = new Map<string, any>();
+            try {
+                const result = await API.GET(Global.footylogicGames);
+                if (result.status === 200) {
+                    const dataLogic: FootyLogic = result.data;
+                    // Build a map of eventId -> event for quick lookup
+                    for (const daum of dataLogic.data) {
+                        if (daum.events && Array.isArray(daum.events)) {
+                            for (const event of daum.events) {
+                                footylogicEventsMap.set(event.eventId, event);
+                            }
+                        }
+                    }
+                    console.log("[getMatchs] FootyLogic API returned", footylogicEventsMap.size, "events for enrichment");
+                }
+            } catch (error) {
+                console.warn("[getMatchs] FootyLogic API failed, continuing with HKJC data only:", error);
             }
 
-            const dataLogic: FootyLogic = result.data;
-            const footylogic: Daum[] = dataLogic.data
-                .map((daum) => {
-                    const filteredEvents = daum.events
-                        .filter((event) => ids.includes(event.eventId))
-                        .sort((a, b) =>
-                            new Date(b.kickOff.replace(" ", "T")).getTime() -
-                            new Date(a.kickOff.replace(" ", "T")).getTime()
-                        );
-                    return {
-                        ...daum,
-                        events: filteredEvents
-                    };
-                })
-                .filter((daum) => daum.events.length > 0);
-
-            // Delete old matches that are no longer in the API response
+            // Delete old matches that are no longer in HKJC API
             console.log("[getMatchs] Checking for old matches to delete...");
             const existingMatchesCol = collection(db, Tables.matches);
             const existingMatchesSnapshot = await getDocs(existingMatchesCol);
@@ -348,63 +342,104 @@ class MatchController {
                 };
             });
 
-            // Get valid date labels from footylogic
-            const validLabels = footylogic.map(d => d.label);
-            
-            // Delete matches with invalid dates (dates not in current API response)
-            const matchesWithInvalidDate = existingMatchesList.filter(m => !validLabels.includes(m.kickOffDate));
-            for (const match of matchesWithInvalidDate) {
-                console.log("[getMatchs] Deleting match with invalid date:", match.eventId, match.kickOffDate);
-                await deleteDoc(doc(db, Tables.matches, match.eventId));
-            }
-
-            // Delete matches that are no longer in the events list for their date
-            for (const daum of footylogic) {
-                const existingMatchesForDate = existingMatchesList.filter((x) => x.kickOffDate === daum.label);
-                const validEventIds = daum.events.map(ev => ev.eventId);
-                
-                for (const match of existingMatchesForDate) {
-                    if (!validEventIds.includes(match.eventId)) {
-                        console.log("[getMatchs] Deleting match no longer in API:", match.eventId);
-                        await deleteDoc(doc(db, Tables.matches, match.eventId));
-                    }
+            const validHKJCIds = hkjc.map(m => m.id);
+            // Delete matches that are no longer in HKJC API
+            for (const match of existingMatchesList) {
+                if (!validHKJCIds.includes(match.eventId)) {
+                    console.log("[getMatchs] Deleting match no longer in HKJC API:", match.eventId);
+                    await deleteDoc(doc(db, Tables.matches, match.eventId));
                 }
             }
 
-            // Flatten matches from all days
+            // Build matches from HKJC data (primary source)
             const allMatches: Match[] = [];
             const matchDetailsPromises: Promise<any>[] = [];
             
-            // First, create all match objects
-            for (const daum of footylogic) {
-                for (const event of daum.events) {
-                    const hkjcMatch = hkjc.find((x) => x.id === event.eventId);
-                    const match: Match = {
-                        ...event,
-                        id: event.eventId,
-                        eventId: event.eventId,
-                        kickOffDate: daum.label,
-                    } as Match;
-
-                    // Add HKJC data if available (HKJC has Chinese names)
-                    if (hkjcMatch) {
-                        if (hkjcMatch.homeTeam?.name_ch) {
-                            match.homeTeamName = hkjcMatch.homeTeam.name_ch;
-                        }
-                        if (hkjcMatch.awayTeam?.name_ch) {
-                            match.awayTeamName = hkjcMatch.awayTeam.name_ch;
-                        }
+            // Create match objects from all HKJC matches
+            for (const hkjcMatch of hkjc) {
+                // Parse HKJC date and time
+                // matchDate might be "YYYY-MM-DD" or "YYYY-MM-DD+HH:mm" 
+                // kickOffTime might be "HH:mm" or full ISO datetime
+                let matchDate = hkjcMatch.matchDate;
+                let kickOffTime = hkjcMatch.kickOffTime;
+                
+                // Extract just the date part (before any + or T)
+                matchDate = matchDate.split('+')[0].split('T')[0];
+                
+                // If kickOffTime is a full ISO datetime, extract just the time part
+                if (kickOffTime.includes('T')) {
+                    kickOffTime = kickOffTime.split('T')[1]?.split('+')[0]?.split('.')[0] || kickOffTime;
+                }
+                
+                const kickOff = `${matchDate} ${kickOffTime}`;
+                
+                // Extract date components for kickOffDate (format: MM/DD/YYYY)
+                const [year, month, day] = matchDate.split('-');
+                const kickOffDate = `${month}/${day}/${year}`;
+                const kickOffDateLocal = `${day}/${month}/${year}`;
+                
+                // Start with basic match from HKJC
+                const match: Match = {
+                    id: hkjcMatch.id,
+                    eventId: hkjcMatch.id,
+                    kickOff: kickOff,
+                    kickOffDate: kickOffDate,
+                    kickOffDateLocal: kickOffDateLocal,
+                    kickOffTime: kickOffTime,
+                    homeTeamName: hkjcMatch.homeTeam?.name_ch || hkjcMatch.homeTeam?.name_en || "",
+                    awayTeamName: hkjcMatch.awayTeam?.name_ch || hkjcMatch.awayTeam?.name_en || "",
+                    homeTeamNameEn: hkjcMatch.homeTeam?.name_en,
+                    awayTeamNameEn: hkjcMatch.awayTeam?.name_en,
+                    competitionName: hkjcMatch.tournament?.name_ch || hkjcMatch.tournament?.name_en || "",
+                    competitionId: parseInt(hkjcMatch.tournament?.id || "0"),
+                    // Default values for fields that may not be in HKJC
+                    matchOutcome: "",
+                    homeForm: "",
+                    awayForm: "",
+                    homeLanguages: {
+                        en: hkjcMatch.homeTeam?.name_en || "",
+                        zh: hkjcMatch.homeTeam?.name_ch || "",
+                        zhCN: hkjcMatch.homeTeam?.name_ch || ""
+                    },
+                    awayLanguages: {
+                        en: hkjcMatch.awayTeam?.name_en || "",
+                        zh: hkjcMatch.awayTeam?.name_ch || "",
+                        zhCN: hkjcMatch.awayTeam?.name_ch || ""
                     }
+                } as Match;
 
-                    allMatches.push(match);
+                // Enrich with FootyLogic data if available
+                const footylogicEvent = footylogicEventsMap.get(hkjcMatch.id);
+                if (footylogicEvent) {
+                    // Merge FootyLogic data into match
+                    if (footylogicEvent.homeTeamLogo) {
+                        match.homeTeamLogo = Global.footylogicImg + footylogicEvent.homeTeamLogo + ".png";
+                    }
+                    if (footylogicEvent.awayTeamLogo) {
+                        match.awayTeamLogo = Global.footylogicImg + footylogicEvent.awayTeamLogo + ".png";
+                    }
+                    if (footylogicEvent.matchOutcome) {
+                        match.matchOutcome = footylogicEvent.matchOutcome;
+                    }
+                    if (footylogicEvent.homeForm) {
+                        match.homeForm = footylogicEvent.homeForm;
+                    }
+                    if (footylogicEvent.awayForm) {
+                        match.awayForm = footylogicEvent.awayForm;
+                    }
+                    if (footylogicEvent.competitionId) {
+                        match.competitionId = footylogicEvent.competitionId;
+                    }
                     
                     // Add promise to fetch details in parallel
                     matchDetailsPromises.push(
-                        API.GET(Global.footylogicDetails + event.eventId)
-                            .then(resultDetails => ({ eventId: event.eventId, resultDetails }))
-                            .catch(error => ({ eventId: event.eventId, error }))
+                        API.GET(Global.footylogicDetails + hkjcMatch.id)
+                            .then(resultDetails => ({ eventId: hkjcMatch.id, resultDetails }))
+                            .catch(error => ({ eventId: hkjcMatch.id, error }))
                     );
                 }
+
+                allMatches.push(match);
             }
 
             // Fetch all match details in parallel
@@ -446,6 +481,32 @@ class MatchController {
                 }
             });
 
+            // Convert Chinese names to simplified Chinese for all matches
+            const convertPromises = allMatches.map(async (match) => {
+                if (match.homeLanguages?.zh && !match.homeLanguages.zhCN) {
+                    try {
+                        match.homeLanguages.zhCN = await convertToSimplifiedChinese(match.homeLanguages.zh) || match.homeLanguages.zh;
+                    } catch (error) {
+                        match.homeLanguages.zhCN = match.homeLanguages.zh;
+                    }
+                }
+                if (match.awayLanguages?.zh && !match.awayLanguages.zhCN) {
+                    try {
+                        match.awayLanguages.zhCN = await convertToSimplifiedChinese(match.awayLanguages.zh) || match.awayLanguages.zh;
+                    } catch (error) {
+                        match.awayLanguages.zhCN = match.awayLanguages.zh;
+                    }
+                }
+            });
+            await Promise.all(convertPromises);
+
+            // Sort matches by kickOff date
+            allMatches.sort((a, b) => {
+                const dateA = new Date(a.kickOff);
+                const dateB = new Date(b.kickOff);
+                return dateA.getTime() - dateB.getTime();
+            });
+
             // Save matches to database
             console.log("[getMatchs] Saving", allMatches.length, "matches to database...");
             const batch = writeBatch(db);
@@ -481,7 +542,7 @@ class MatchController {
                 
                 if (matchSnap.exists()) {
                     existingMatchData = matchSnap.data() as Match;
-                    // Check if match has all required fields (especially lastGames for details page)
+                    // If match exists in DB with complete data, return it immediately
                     if (existingMatchData.lastGames && existingMatchData.lastGames.homeTeam && existingMatchData.lastGames.awayTeam) {
                         console.log("[getMatchDetails] Returning complete match from database");
                         return res.json(existingMatchData);
@@ -505,23 +566,7 @@ class MatchController {
                 ApiHKJC().catch(err => { console.error("[getMatchDetails] Error fetching HKJC:", err); return []; })
             ]);
             
-            if (resultDetails.status !== 200 || !resultDetails.data || resultDetails.data.statusCode !== 200) {
-                console.error("[getMatchDetails] FootyLogic Details API error:", {
-                    status: resultDetails.status,
-                    statusCode: resultDetails.data?.statusCode,
-                    data: resultDetails.data
-                });
-                return res.status(404).json({ error: 'Match not found' });
-            }
-
-            const footylogicDetails = resultDetails.data.data;
-            
-            if (!footylogicDetails) {
-                console.error("[getMatchDetails] FootyLogic details data is null/undefined");
-                return res.status(404).json({ error: 'Match details not found' });
-            }
-            
-            // Extract match event from games result
+            // Extract match event from games result first (this is more reliable)
             let matchEvent: any = null;
             if (gamesResult.status === 200 && gamesResult.data && gamesResult.data.data) {
                 for (const daum of gamesResult.data.data) {
@@ -535,8 +580,25 @@ class MatchController {
                 }
             }
 
-            // If matchEvent not found, use data from details API
-            if (!matchEvent) {
+            // Extract footylogicDetails from details API response
+            const footylogicDetails = resultDetails.status === 200 && resultDetails.data?.statusCode === 200 ? resultDetails.data.data : null;
+
+            // Check if we have match data from DB or games API
+            if (!existingMatchData && !matchEvent && !footylogicDetails) {
+                // No match found in DB, games API, or details API
+                console.error("[getMatchDetails] Match not found in database, games API, or details API");
+                return res.status(404).json({ error: 'Match not found' });
+            }
+
+            // If we have existing match data but no matchEvent from games API, return DB data
+            if (existingMatchData && !matchEvent) {
+                // Match exists in DB but not in games API, return DB data
+                console.log("[getMatchDetails] Returning match from database (not found in games API)");
+                return res.json(existingMatchData);
+            }
+            
+            // If matchEvent not found but we have details, use data from details API
+            if (!matchEvent && footylogicDetails) {
                 console.warn("[getMatchDetails] Match event not found in games API, using details data only");
                 matchEvent = {
                     eventId: id,
@@ -548,22 +610,28 @@ class MatchController {
                 };
             }
 
+            // If we still don't have matchEvent and no existing data, return 404
+            if (!matchEvent && !existingMatchData) {
+                console.error("[getMatchDetails] Match not found in any API or database");
+                return res.status(404).json({ error: 'Match not found' });
+            }
+
             // Build match data from API responses
             // If we have existing matchData from DB, merge it; otherwise create new
             let matchDataFromAPI: Match = {
                 ...matchEvent,
                 id: id,
                 eventId: id,
-                homeTeamLogo: footylogicDetails.homeTeamLogo 
+                homeTeamLogo: footylogicDetails?.homeTeamLogo 
                     ? Global.footylogicImg + footylogicDetails.homeTeamLogo + ".png" 
-                    : undefined,
-                awayTeamLogo: footylogicDetails.awayTeamLogo 
+                    : matchEvent.homeTeamLogo,
+                awayTeamLogo: footylogicDetails?.awayTeamLogo 
                     ? Global.footylogicImg + footylogicDetails.awayTeamLogo + ".png" 
-                    : undefined,
-                homeTeamNameEn: footylogicDetails.homeTeamName || matchEvent.homeTeamName,
-                awayTeamNameEn: footylogicDetails.awayTeamName || matchEvent.awayTeamName,
-                homeTeamId: footylogicDetails.homeTeamId,
-                awayTeamId: footylogicDetails.awayTeamId,
+                    : matchEvent.awayTeamLogo,
+                homeTeamNameEn: footylogicDetails?.homeTeamName || matchEvent.homeTeamNameEn || matchEvent.homeTeamName,
+                awayTeamNameEn: footylogicDetails?.awayTeamName || matchEvent.awayTeamNameEn || matchEvent.awayTeamName,
+                homeTeamId: footylogicDetails?.homeTeamId || matchEvent.homeTeamId,
+                awayTeamId: footylogicDetails?.awayTeamId || matchEvent.awayTeamId,
             } as Match;
             
             // Merge with existing matchData from DB if it exists (preserve DB data, override with API data)
