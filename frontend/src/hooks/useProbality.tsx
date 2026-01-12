@@ -14,9 +14,9 @@ export const useProbability = (
             if (res.status === 200 && res.data) return res.data;
             throw new Error(`Failed to fetch match details: ${res.status}`);
         },
-        refetchOnMount: false,
-        refetchOnWindowFocus: false,
-        staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
-        gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
+        refetchOnMount: true, // Refetch when component mounts
+        refetchOnWindowFocus: true, // Refetch when window regains focus
+        staleTime: 30 * 1000, // Consider data fresh for 30 seconds (reduced for production)
+        gcTime: 60 * 1000, // Keep in cache for 1 minute (reduced for production)
     });
 };

@@ -110,7 +110,7 @@ export default function SectionComponent7({
                 </a>
 
 
-                {currentLang.code != "zhCN" ?
+                {currentLang.code === "zhCN" ?
                     <a onClick={admin ? () => handleIconClick(config?.telegram ?? "", "telegram") : () => {
                         const url = config?.telegram ?? "/";
                         const width = 1000;
@@ -122,7 +122,7 @@ export default function SectionComponent7({
                         <FaTelegramPlane className="hover:text-red-900 text-5xl text-white transition duration-300" />
                     </a> : undefined
                 }
-                {currentLang.code != "zhCN" ?
+                {currentLang.code === "zhCN" ?
                     <a
                         onClick={admin ? () => handleIconClick(config?.whatsapp ?? "", "whatsapp") : () => {
                             const url = config?.whatsapp ?? "/";
