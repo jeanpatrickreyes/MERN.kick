@@ -270,7 +270,37 @@ class MatchController {
             const refresh = req.query.refresh === 'true';
             console.log("[getMatchs] Request received, refresh:", refresh);
             
-            // First, try to get matches from database
+            // Always fetch from HKJC API to check for updates and cleanup old matches
+            const hkjc: HKJC[] = await ApiHKJC();
+            console.log("[getMatchs] HKJC API returned", hkjc.length, "matches");
+            
+            if (hkjc.length === 0) {
+                return res.json([]);
+            }
+
+            // Always cleanup old matches that are no longer in HKJC API
+            console.log("[getMatchs] Checking for old matches to delete...");
+            const existingMatchesCol = collection(db, Tables.matches);
+            const existingMatchesSnapshot = await getDocs(existingMatchesCol);
+            const existingMatchesList = existingMatchesSnapshot.docs.map(doc => {
+                const data = doc.data();
+                return {
+                    id: doc.id,
+                    eventId: data.eventId,
+                    kickOffDate: data.kickOffDate
+                };
+            });
+
+            const validHKJCIds = hkjc.map(m => m.id);
+            // Delete matches that are no longer in HKJC API
+            for (const match of existingMatchesList) {
+                if (!validHKJCIds.includes(match.eventId)) {
+                    console.log("[getMatchs] Deleting match no longer in HKJC API:", match.eventId);
+                    await deleteDoc(doc(db, Tables.matches, match.eventId));
+                }
+            }
+
+            // If not refreshing, check if we have matches in DB and return them
             if (!refresh) {
                 const matchesCol = collection(db, Tables.matches);
                 const matchesSnapshot = await getDocs(matchesCol);
@@ -292,21 +322,12 @@ class MatchController {
                         return dateA.getTime() - dateB.getTime();
                     });
 
-                    console.log("[getMatchs] Returning", sortedMatches.length, "matches from database");
+                    console.log("[getMatchs] Returning", sortedMatches.length, "matches from database (after cleanup)");
                     return res.json(sortedMatches);
                 }
                 console.log("[getMatchs] No matches in database, fetching from APIs...");
             } else {
                 console.log("[getMatchs] Refresh requested, fetching from APIs...");
-            }
-            
-            // If DB is empty or refresh requested, fetch from APIs
-            // Fetch from HKJC API (primary source - should return all 61 matches)
-            const hkjc: HKJC[] = await ApiHKJC();
-            console.log("[getMatchs] HKJC API returned", hkjc.length, "matches");
-            
-            if (hkjc.length === 0) {
-                return res.json([]);
             }
 
             // Fetch from FootyLogic API (optional enrichment)
@@ -327,28 +348,6 @@ class MatchController {
                 }
             } catch (error) {
                 console.warn("[getMatchs] FootyLogic API failed, continuing with HKJC data only:", error);
-            }
-
-            // Delete old matches that are no longer in HKJC API
-            console.log("[getMatchs] Checking for old matches to delete...");
-            const existingMatchesCol = collection(db, Tables.matches);
-            const existingMatchesSnapshot = await getDocs(existingMatchesCol);
-            const existingMatchesList = existingMatchesSnapshot.docs.map(doc => {
-                const data = doc.data();
-                return {
-                    id: doc.id,
-                    eventId: data.eventId,
-                    kickOffDate: data.kickOffDate
-                };
-            });
-
-            const validHKJCIds = hkjc.map(m => m.id);
-            // Delete matches that are no longer in HKJC API
-            for (const match of existingMatchesList) {
-                if (!validHKJCIds.includes(match.eventId)) {
-                    console.log("[getMatchs] Deleting match no longer in HKJC API:", match.eventId);
-                    await deleteDoc(doc(db, Tables.matches, match.eventId));
-                }
             }
 
             // Build matches from HKJC data (primary source)
