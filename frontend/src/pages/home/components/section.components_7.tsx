@@ -136,7 +136,7 @@ export default function SectionComponent7({
                 </a>
 
 
-                <a onClick={admin ? () => handleIconClick(config?.message ?? "", "message") : () => {
+                {/* <a onClick={admin ? () => handleIconClick(config?.message ?? "", "message") : () => {
                     const url = config?.message ?? "/";
                     const width = 1000;
                     const height = 1000;
@@ -163,7 +163,7 @@ export default function SectionComponent7({
                         </g>
                         <g fill="#1E88E5" className="hover-fill">
                         </g>
-                    </svg>   </a>
+                    </svg>   </a> */}
 
 
 
