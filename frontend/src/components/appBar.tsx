@@ -117,12 +117,7 @@ function AppBarComponent() {
                                     <g fill="#1E88E5" className="hover-fill">
                                     </g></svg>, url: config?.message
                             },
-                        ].filter((_, index) => {
-                            if (currentLang.code === "zhCN") {
-                                return ![2, 3].includes(index);
-                            }
-                            return true;
-                        }).map((s, i) => (
+                        ].map((s, i) => (
                             <span
                                 key={i}
                                 className="cursor-pointer hover:text-red-500"

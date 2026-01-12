@@ -110,34 +110,30 @@ export default function SectionComponent7({
                 </a>
 
 
-                {currentLang.code === "zhCN" ?
-                    <a onClick={admin ? () => handleIconClick(config?.telegram ?? "", "telegram") : () => {
-                        const url = config?.telegram ?? "/";
+                <a onClick={admin ? () => handleIconClick(config?.telegram ?? "", "telegram") : () => {
+                    const url = config?.telegram ?? "/";
+                    const width = 1000;
+                    const height = 1000;
+                    const left = window.screen.width - width - 20;
+                    const top = window.screen.height - height - 20;
+                    window.open(url, "telegramWindow", `width=${width},height=${height},top=${top},left=${left},resizable=yes,scrollbars=yes`);
+                }} rel="noopener noreferrer">
+                    <FaTelegramPlane className="hover:text-red-900 text-5xl text-white transition duration-300" />
+                </a>
+                <a
+                    onClick={admin ? () => handleIconClick(config?.whatsapp ?? "", "whatsapp") : () => {
+                        const url = config?.whatsapp ?? "/";
                         const width = 1000;
                         const height = 1000;
                         const left = window.screen.width - width - 20;
                         const top = window.screen.height - height - 20;
-                        window.open(url, "telegramWindow", `width=${width},height=${height},top=${top},left=${left},resizable=yes,scrollbars=yes`);
-                    }} rel="noopener noreferrer">
-                        <FaTelegramPlane className="hover:text-red-900 text-5xl text-white transition duration-300" />
-                    </a> : undefined
-                }
-                {currentLang.code === "zhCN" ?
-                    <a
-                        onClick={admin ? () => handleIconClick(config?.whatsapp ?? "", "whatsapp") : () => {
-                            const url = config?.whatsapp ?? "/";
-                            const width = 1000;
-                            const height = 1000;
-                            const left = window.screen.width - width - 20;
-                            const top = window.screen.height - height - 20;
-                            window.open(url, "whatsappWindow", `width=${width},height=${height},top=${top},left=${left},resizable=yes,scrollbars=yes`);
-                        }}
+                        window.open(url, "whatsappWindow", `width=${width},height=${height},top=${top},left=${left},resizable=yes,scrollbars=yes`);
+                    }}
 
-                        rel="noopener noreferrer"
-                    >
-                        <FaWhatsapp className="hover:text-green-600 text-5xl text-white transition duration-300" />
-                    </a> : undefined
-                }
+                    rel="noopener noreferrer"
+                >
+                    <FaWhatsapp className="hover:text-green-600 text-5xl text-white transition duration-300" />
+                </a>
 
 
                 <a onClick={admin ? () => handleIconClick(config?.message ?? "", "message") : () => {

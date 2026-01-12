@@ -11,15 +11,6 @@ import useIsMobile from "../../hooks/useIsMobile";
 import { useConfig } from "../../hooks/useConfig";
 import SectionComponent7 from "./components/section.components_7";
 import { FaTelegramPlane, FaWhatsapp } from "react-icons/fa";
-import i18n from "../../i18n";
-import { useEffect, useState } from "react";
-
-
-const languages = [
-    { code: "zh", label: "繁體中文", flag: "🇭🇰" },
-    { code: "zhCN", label: "简体中文", flag: "🇨🇳" },
-    { code: "en", label: "English", flag: "🇺🇸" },
-];
 
 
 export default function HomePage() {
@@ -27,24 +18,6 @@ export default function HomePage() {
     const { data, isLoading } = useMatchs();
     const { data: records, isError, isLoading: isLoadingRecords } = useRecords(1, isMobile ? 4 : 6);
     const { data: config } = useConfig();
-
-    const [currentLang, setCurrentLang] = useState(languages[0]);
-
-    useEffect(() => {
-        const lang =
-            languages.find(l => l.code === i18n.language) || languages[0];
-
-        setCurrentLang(lang);
-
-        const interval = setInterval(() => {
-            const lang =
-                languages.find(l => l.code === i18n.language) || languages[0];
-
-            setCurrentLang(lang);
-        }, 1000);
-
-        return () => clearInterval(interval);
-    }, [i18n.language]);
     return (isLoading || isLoadingRecords
         ?
         <Loading />
@@ -70,7 +43,7 @@ export default function HomePage() {
             <SectionComponent8 />
 
 
-            {config?.whatsapp && currentLang.code != "zhCN" ? (
+            {config?.whatsapp ? (
                 <button
                     onClick={() => {
                         const width = 600;
@@ -99,7 +72,7 @@ export default function HomePage() {
                 : undefined}
 
 
-            {config?.telegram && currentLang.code != "zhCN" ? (
+            {config?.telegram ? (
                 <button
                     onClick={() => {
                         const width = 600;
