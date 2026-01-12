@@ -31,6 +31,8 @@ export default function SectionComponent7({
     const [modalVisible, setModalVisible] = useState(false);
     const [editedURL, setEditedURL] = useState("");
     const [field, setField] = useState("");
+    const [urlModalVisible, setUrlModalVisible] = useState(false);
+    const [urlInput, setUrlInput] = useState("");
 
     const handleIconClick = (url: string, field: string) => {
         setField(field);
@@ -55,6 +57,29 @@ export default function SectionComponent7({
             navigate("/success");
         }
         setModalVisible(false);
+    };
+
+    const handleUrlModalOpen = () => {
+        setUrlInput(config?.whatsapp ?? "");
+        setUrlModalVisible(true);
+    };
+
+    const handleUrlModalClose = () => {
+        setUrlModalVisible(false);
+        setUrlInput("");
+    };
+
+    const handleUrlSave = () => {
+        if (urlInput.trim()) {
+            const url = urlInput.trim();
+            if (!url.startsWith("http://") && !url.startsWith("https://")) {
+                window.open(`https://${url}`, "_blank");
+            } else {
+                window.open(url, "_blank");
+            }
+        }
+        setUrlModalVisible(false);
+        setUrlInput("");
     };
 
     const admin = userRole && (userRole === "admin" || userRole === "subadmin");
@@ -93,7 +118,8 @@ export default function SectionComponent7({
                     <img 
                         src="/whatsapp-blue.jpg" 
                         alt="WhatsApp" 
-                        className="w-12 h-12 object-contain"
+                        className="w-12 h-12 object-contain cursor-pointer hover:opacity-80 transition-opacity"
+                        onClick={handleUrlModalOpen}
                     />
                 </div>
             ) : (
@@ -206,6 +232,33 @@ export default function SectionComponent7({
                         {t("cancel")}
                     </Button>
                     <Button onClick={handleEdit} color="primary">
+                        {t("save")}
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            <Dialog open={urlModalVisible} onClose={handleUrlModalClose}
+                sx={{
+                    "& .MuiDialog-paper": {
+                        backgroundColor: "white",
+                        color: "white",
+                        margin: 10,
+                        borderRadius: "8px",
+                    }
+                }}>
+                <DialogContent>
+                    <TextField
+                        fullWidth
+                        value={urlInput}
+                        onChange={(e) => setUrlInput(e.target.value)}
+                        margin="dense"
+                    />
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={handleUrlModalClose} color="secondary">
+                        {t("cancel")}
+                    </Button>
+                    <Button onClick={handleUrlSave} color="primary">
                         {t("save")}
                     </Button>
                 </DialogActions>

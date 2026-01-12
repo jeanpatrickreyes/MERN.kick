@@ -13,6 +13,14 @@ import SectionComponent7 from "./components/section.components_7";
 import { FaTelegramPlane, FaWhatsapp } from "react-icons/fa";
 import i18n from "../../i18n";
 import { useEffect, useState } from "react";
+import {
+    Dialog,
+    DialogContent,
+    DialogActions,
+    TextField,
+    Button,
+} from "@mui/material";
+import { useTranslation } from "react-i18next";
 
 
 const languages = [
@@ -27,8 +35,11 @@ export default function HomePage() {
     const { data, isLoading } = useMatchs();
     const { data: records, isError, isLoading: isLoadingRecords } = useRecords(1, isMobile ? 4 : 6);
     const { data: config } = useConfig();
+    const { t } = useTranslation();
 
     const [currentLang, setCurrentLang] = useState(languages[0]);
+    const [urlModalVisible, setUrlModalVisible] = useState(false);
+    const [urlInput, setUrlInput] = useState("");
 
     useEffect(() => {
         const lang =
@@ -45,6 +56,30 @@ export default function HomePage() {
 
         return () => clearInterval(interval);
     }, [i18n.language]);
+
+    const handleUrlModalOpen = () => {
+        setUrlInput(config?.whatsapp ?? "");
+        setUrlModalVisible(true);
+    };
+
+    const handleUrlModalClose = () => {
+        setUrlModalVisible(false);
+        setUrlInput("");
+    };
+
+    const handleUrlSave = () => {
+        if (urlInput.trim()) {
+            const url = urlInput.trim();
+            if (!url.startsWith("http://") && !url.startsWith("https://")) {
+                window.open(`https://${url}`, "_blank");
+            } else {
+                window.open(url, "_blank");
+            }
+        }
+        setUrlModalVisible(false);
+        setUrlInput("");
+    };
+
     return (isLoading || isLoadingRecords
         ?
         <Loading />
@@ -73,19 +108,7 @@ export default function HomePage() {
             {currentLang.code === "zhCN" ? (
                 // For Simplified Chinese: Show whatsapp-black.jpg image
                 <button
-                    onClick={() => {
-                        if (config?.whatsapp) {
-                            const width = 600;
-                            const height = 800;
-                            const left = window.screen.width - width - 20;
-                            const top = window.screen.height - height - 20;
-                            window.open(
-                                config.whatsapp,
-                                "whatsappWindow",
-                                `width=${width},height=${height},top=${top},left=${left},resizable=yes,scrollbars=yes`
-                            );
-                        }
-                    }}
+                    onClick={handleUrlModalOpen}
                     className="
                         fixed sm:bottom-20 bottom-16 sm:right-10 right-5 z-50
                         sm:p-5 p-3 rounded-full shadow-lg
@@ -192,6 +215,32 @@ export default function HomePage() {
                 )} */}
 
 
+            <Dialog open={urlModalVisible} onClose={handleUrlModalClose}
+                sx={{
+                    "& .MuiDialog-paper": {
+                        backgroundColor: "white",
+                        color: "white",
+                        margin: 10,
+                        borderRadius: "8px",
+                    }
+                }}>
+                <DialogContent>
+                    <TextField
+                        fullWidth
+                        value={urlInput}
+                        onChange={(e) => setUrlInput(e.target.value)}
+                        margin="dense"
+                    />
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={handleUrlModalClose} color="secondary">
+                        {t("cancel")}
+                    </Button>
+                    <Button onClick={handleUrlSave} color="primary">
+                        {t("save")}
+                    </Button>
+                </DialogActions>
+            </Dialog>
 
 
 
