@@ -10,6 +10,10 @@ function DetailsInfoComponent({
 }: Props) {
     const { t } = useTranslation();
 
+    if (!probability.predictions) {
+        return null;
+    }
+
     const isHome = probability.predictions.homeWinRate > probability.predictions.awayWinRate;
     const winRate = isHome ? probability.predictions.homeWinRate : probability.predictions.awayWinRate;
     const kelly = isHome ? probability.predictions.kellyHome : probability.predictions.kellyAway;
