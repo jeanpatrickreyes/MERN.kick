@@ -36,7 +36,22 @@ app.use('/api', (req, res, next) => {
 });
 
 app.use(express.json());
-app.use(express.static(path.join(__dirname, "../../frontend/dist")));
+
+// Static files with proper cache control
+// Hashed files (JS, CSS) can be cached for 1 year, index.html should not be cached
+app.use(express.static(path.join(__dirname, "../../frontend/dist"), {
+    maxAge: '1y',
+    etag: true,
+    lastModified: true,
+    setHeaders: (res, filePath) => {
+        // Don't cache index.html - always fetch fresh
+        if (filePath.endsWith('index.html')) {
+            res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+            res.setHeader('Pragma', 'no-cache');
+            res.setHeader('Expires', '0');
+        }
+    }
+}));
 
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use("/api/home", homeRouter);
