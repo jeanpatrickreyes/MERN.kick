@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import { matchRouter } from './routes/match.routes';
@@ -11,15 +12,15 @@ import { recordsRouter } from './routes/records.routes';
 import { configRouter } from './routes/config.routes';
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 // CORS Configuration
 // For local development: specify exact origin and allow credentials
 // For production: can use wildcard or specific domain
 const corsOptions = {
-    origin: process.env.NODE_ENV === 'production' 
+    origin: process.env.CORS_ORIGIN || (process.env.NODE_ENV === 'production' 
         ? '*' // Production: allow all (or specify your domain)
-        : 'http://localhost:5173', // Development: exact origin required for credentials
+        : 'http://localhost:5173'), // Development: exact origin required for credentials
     credentials: true, // Required when using withCredentials: true in frontend
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Cache-Control', 'Pragma'],
