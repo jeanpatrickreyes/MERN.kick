@@ -15,12 +15,18 @@ import i18n from "../../i18n";
 import { useEffect, useState } from "react";
 import {
     Dialog,
+    DialogTitle,
     DialogContent,
     DialogActions,
     TextField,
     Button,
 } from "@mui/material";
 import { useTranslation } from "react-i18next";
+import useAuthStore from "../../store/userAuthStore";
+import { useNavigate } from "react-router-dom";
+import AppGlobal from "../../ultis/global";
+import API from "../../api/api";
+import { useQueryClient } from "@tanstack/react-query";
 
 
 const languages = [
@@ -36,6 +42,11 @@ export default function HomePage() {
     const { data: records, isError, isLoading: isLoadingRecords } = useRecords(1, isMobile ? 4 : 6);
     const { data: config } = useConfig();
     const { t } = useTranslation();
+    const { userRole } = useAuthStore();
+    const navigate = useNavigate();
+    const queryClient = useQueryClient();
+
+    const admin = userRole && (userRole === "admin" || userRole === "subadmin");
 
     const [currentLang, setCurrentLang] = useState(languages[0]);
     const [urlModalVisible, setUrlModalVisible] = useState(false);
@@ -57,9 +68,16 @@ export default function HomePage() {
         return () => clearInterval(interval);
     }, [i18n.language]);
 
-    const handleUrlModalOpen = () => {
-        setUrlInput(config?.whatsapp ?? "");
-        setUrlModalVisible(true);
+    const handleWeChatClick = () => {
+        if (admin) {
+            // Admin: Show modal to edit
+            setUrlInput(config?.whatsapp ?? "https://wa.me/85266750460");
+            setUrlModalVisible(true);
+        } else {
+            // Client: Open WhatsApp link directly
+            const whatsappUrl = config?.whatsapp || "https://wa.me/85266750460";
+            window.open(whatsappUrl, "_blank");
+        }
     };
 
     const handleUrlModalClose = () => {
@@ -67,13 +85,30 @@ export default function HomePage() {
         setUrlInput("");
     };
 
-    const handleUrlSave = () => {
+    const handleUrlSave = async () => {
         if (urlInput.trim()) {
-            const url = urlInput.trim();
-            if (!url.startsWith("http://") && !url.startsWith("https://")) {
-                window.open(`https://${url}`, "_blank");
+            if (admin) {
+                // Admin: Save to config
+                const data = {
+                    instagram: config?.instagram ?? "",
+                    threads: config?.threads ?? "",
+                    telegram: config?.telegram ?? "",
+                    whatsapp: urlInput.trim(),
+                    message: config?.message ?? ""
+                };
+                const res = await API.POST(`${AppGlobal.baseURL}config`, data);
+                if (res.status == 200 || res.status == 201) {
+                    queryClient.invalidateQueries({ queryKey: ["config"] });
+                    navigate("/success");
+                }
             } else {
-                window.open(url, "_blank");
+                // Client: Just open the URL
+                const url = urlInput.trim();
+                if (!url.startsWith("http://") && !url.startsWith("https://")) {
+                    window.open(`https://${url}`, "_blank");
+                } else {
+                    window.open(url, "_blank");
+                }
             }
         }
         setUrlModalVisible(false);
@@ -108,7 +143,7 @@ export default function HomePage() {
             {currentLang.code === "zhCN" ? (
                 // For Simplified Chinese: Show whatsapp-black.jpg image
                 <button
-                    onClick={handleUrlModalOpen}
+                    onClick={handleWeChatClick}
                     className="
                         fixed sm:bottom-20 bottom-16 sm:right-10 right-5 z-50
                         sm:w-14 sm:h-14 w-12 h-12 rounded-full shadow-lg
@@ -215,32 +250,36 @@ export default function HomePage() {
                 )} */}
 
 
-            <Dialog open={urlModalVisible} onClose={handleUrlModalClose}
-                sx={{
-                    "& .MuiDialog-paper": {
-                        backgroundColor: "white",
-                        color: "white",
-                        margin: 10,
-                        borderRadius: "8px",
-                    }
-                }}>
-                <DialogContent>
-                    <TextField
-                        fullWidth
-                        value={urlInput}
-                        onChange={(e) => setUrlInput(e.target.value)}
-                        margin="dense"
-                    />
-                </DialogContent>
-                <DialogActions>
-                    <Button onClick={handleUrlModalClose} color="secondary">
-                        {t("cancel")}
-                    </Button>
-                    <Button onClick={handleUrlSave} color="primary">
-                        {t("save")}
-                    </Button>
-                </DialogActions>
-            </Dialog>
+            {admin && (
+                <Dialog open={urlModalVisible} onClose={handleUrlModalClose}
+                    sx={{
+                        "& .MuiDialog-paper": {
+                            backgroundColor: "white",
+                            color: "white",
+                            margin: 10,
+                            borderRadius: "8px",
+                        }
+                    }}>
+                    <DialogTitle>WhatsApp URL</DialogTitle>
+                    <DialogContent>
+                        <TextField
+                            fullWidth
+                            label="WhatsApp URL"
+                            value={urlInput}
+                            onChange={(e) => setUrlInput(e.target.value)}
+                            margin="dense"
+                        />
+                    </DialogContent>
+                    <DialogActions>
+                        <Button onClick={handleUrlModalClose} color="secondary">
+                            {t("cancel")}
+                        </Button>
+                        <Button onClick={handleUrlSave} color="primary">
+                            {t("save")}
+                        </Button>
+                    </DialogActions>
+                </Dialog>
+            )}
 
 
 

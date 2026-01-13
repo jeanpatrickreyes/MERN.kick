@@ -16,6 +16,7 @@ import AppGlobal from "../../../ultis/global";
 import API from "../../../api/api";
 import { useNavigate } from "react-router-dom";
 import i18n from "../../../i18n";
+import { useQueryClient } from "@tanstack/react-query";
 
 export type Props = {
     config: Config | undefined
@@ -26,6 +27,7 @@ export default function SectionComponent7({
 }: Props) {
     const { t } = useTranslation();
     const { userRole } = useAuthStore();
+    const queryClient = useQueryClient();
 
     const navigate = useNavigate();
     const [modalVisible, setModalVisible] = useState(false);
@@ -59,9 +61,16 @@ export default function SectionComponent7({
         setModalVisible(false);
     };
 
-    const handleUrlModalOpen = () => {
-        setUrlInput(config?.whatsapp ?? "");
-        setUrlModalVisible(true);
+    const handleWeChatClick = () => {
+        if (admin) {
+            // Admin: Show modal to edit
+            setUrlInput(config?.whatsapp ?? "https://wa.me/85266750460");
+            setUrlModalVisible(true);
+        } else {
+            // Client: Open WhatsApp link directly
+            const whatsappUrl = config?.whatsapp || "https://wa.me/85266750460";
+            window.open(whatsappUrl, "_blank");
+        }
     };
 
     const handleUrlModalClose = () => {
@@ -69,13 +78,30 @@ export default function SectionComponent7({
         setUrlInput("");
     };
 
-    const handleUrlSave = () => {
+    const handleUrlSave = async () => {
         if (urlInput.trim()) {
-            const url = urlInput.trim();
-            if (!url.startsWith("http://") && !url.startsWith("https://")) {
-                window.open(`https://${url}`, "_blank");
+            if (admin) {
+                // Admin: Save to config
+                const data = {
+                    instagram: config?.instagram ?? "",
+                    threads: config?.threads ?? "",
+                    telegram: config?.telegram ?? "",
+                    whatsapp: urlInput.trim(),
+                    message: config?.message ?? ""
+                };
+                const res = await API.POST(`${AppGlobal.baseURL}config`, data);
+                if (res.status == 200 || res.status == 201) {
+                    queryClient.invalidateQueries({ queryKey: ["config"] });
+                    navigate("/success");
+                }
             } else {
-                window.open(url, "_blank");
+                // Client: Just open the URL
+                const url = urlInput.trim();
+                if (!url.startsWith("http://") && !url.startsWith("https://")) {
+                    window.open(`https://${url}`, "_blank");
+                } else {
+                    window.open(url, "_blank");
+                }
             }
         }
         setUrlModalVisible(false);
@@ -119,7 +145,7 @@ export default function SectionComponent7({
                         src="/whatsapp-blue.jpg" 
                         alt="WhatsApp" 
                         className="w-12 h-12 object-contain cursor-pointer hover:opacity-80 transition-opacity"
-                        onClick={handleUrlModalOpen}
+                        onClick={handleWeChatClick}
                         style={{ borderRadius: '10px' }}
                     />
                 </div>
@@ -238,32 +264,36 @@ export default function SectionComponent7({
                 </DialogActions>
             </Dialog>
 
-            <Dialog open={urlModalVisible} onClose={handleUrlModalClose}
-                sx={{
-                    "& .MuiDialog-paper": {
-                        backgroundColor: "white",
-                        color: "white",
-                        margin: 10,
-                        borderRadius: "8px",
-                    }
-                }}>
-                <DialogContent>
-                    <TextField
-                        fullWidth
-                        value={urlInput}
-                        onChange={(e) => setUrlInput(e.target.value)}
-                        margin="dense"
-                    />
-                </DialogContent>
-                <DialogActions>
-                    <Button onClick={handleUrlModalClose} color="secondary">
-                        {t("cancel")}
-                    </Button>
-                    <Button onClick={handleUrlSave} color="primary">
-                        {t("save")}
-                    </Button>
-                </DialogActions>
-            </Dialog>
+            {admin && (
+                <Dialog open={urlModalVisible} onClose={handleUrlModalClose}
+                    sx={{
+                        "& .MuiDialog-paper": {
+                            backgroundColor: "white",
+                            color: "white",
+                            margin: 10,
+                            borderRadius: "8px",
+                        }
+                    }}>
+                    <DialogTitle>WhatsApp URL</DialogTitle>
+                    <DialogContent>
+                        <TextField
+                            fullWidth
+                            label="WhatsApp URL"
+                            value={urlInput}
+                            onChange={(e) => setUrlInput(e.target.value)}
+                            margin="dense"
+                        />
+                    </DialogContent>
+                    <DialogActions>
+                        <Button onClick={handleUrlModalClose} color="secondary">
+                            {t("cancel")}
+                        </Button>
+                        <Button onClick={handleUrlSave} color="primary">
+                            {t("save")}
+                        </Button>
+                    </DialogActions>
+                </Dialog>
+            )}
 
         </section>
     );
