@@ -111,19 +111,19 @@ export default function HomePage() {
                     onClick={handleUrlModalOpen}
                     className="
                         fixed sm:bottom-20 bottom-16 sm:right-10 right-5 z-50
-                        sm:p-5 p-3 rounded-full shadow-lg
+                        sm:w-14 sm:h-14 w-12 h-12 rounded-full shadow-lg
                         hover:opacity-80 transition-opacity
                         flex items-center justify-center
                         transform
                         opacity-0 scale-90
                         animate-fadeInScale
-                        bg-transparent border-none cursor-pointer
+                        bg-black border-none cursor-pointer p-0
                     "
                 >
                     <img 
                         src="/whatsapp-black.jpg" 
                         alt="WhatsApp" 
-                        className="sm:w-9 w-8 h-auto object-contain rounded-full"
+                        className="sm:w-9 w-8 h-auto object-contain"
                     />
                 </button>
             ) : (
