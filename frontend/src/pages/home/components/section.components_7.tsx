@@ -120,6 +120,7 @@ export default function SectionComponent7({
                         alt="WhatsApp" 
                         className="w-12 h-12 object-contain cursor-pointer hover:opacity-80 transition-opacity"
                         onClick={handleUrlModalOpen}
+                        style={{ borderRadius: '10px' }}
                     />
                 </div>
             ) : (
