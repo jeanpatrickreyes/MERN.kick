@@ -38,10 +38,12 @@ export const ApiHKJC = async (): Promise<HKJC[]> => {
             console.log("[ApiHKJC] Received", matches.length, "matches from HKJC API");
             // Log date range of matches
             if (matches.length > 0) {
-                const dates = matches.map(m => {
+                const dates = matches.map((m: HKJC): string | undefined => {
                     const date = m.matchDate?.split('+')[0]?.split('T')[0];
                     return date;
-                }).filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).sort();
+                }).filter((date: string | undefined): date is string => Boolean(date))
+                  .filter((v: string, i: number, a: string[]) => a.indexOf(v) === i)
+                  .sort();
                 if (dates.length > 0) {
                     console.log("[ApiHKJC] Match dates range:", dates[0], "to", dates[dates.length - 1], "(" + dates.length + " unique dates)");
                 }
