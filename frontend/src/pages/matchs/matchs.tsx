@@ -36,16 +36,15 @@ function MatchsPage() {
             setMatchs([]);
             return;
         }
-        const dates = getDates(data);
-        getMatch(data, dates);
+        getMatch(data);
     }, [data, selectedDay]);
 
-    function getMatch(matches: Match[], dates: string[]) {
+    function getMatch(matches: Match[]) {
         const allMatch: Match[] = matches.map((m) => {
             const dateStr = m.kickOff.split(' ')[0];
             const [_, month, day] = dateStr.split('-');
             const formatted = `${day}/${month}`;
-            // Always set matchDateFormated for all matches, even if not in dates array
+            // Always set matchDateFormated for all matches
             m.matchDateFormated = formatted;
             return m;
         });
