@@ -266,16 +266,65 @@ class MatchController {
 
 
     static async getMatchs(req: Request, res: Response) {
+        const methodStartTime = Date.now();
         try {
             const refresh = req.query.refresh === 'true';
-            console.log("[getMatchs] Request received, refresh:", refresh);
+            console.log("========================================");
+            console.log("[getMatchs] Request received");
+            console.log("[getMatchs] Refresh parameter:", refresh);
+            console.log("[getMatchs] Request origin:", req.headers.origin);
+            console.log("[getMatchs] Request method:", req.method);
+            console.log("========================================");
             
             // Always fetch from HKJC API to check for updates and cleanup old matches
+            console.log("[getMatchs] Fetching from HKJC API...");
+            const hkjcStartTime = Date.now();
             const hkjc: HKJC[] = await ApiHKJC();
-            console.log("[getMatchs] HKJC API returned", hkjc.length, "matches");
+            const hkjcDuration = Date.now() - hkjcStartTime;
+            console.log("[getMatchs] HKJC API returned", hkjc.length, "matches in", hkjcDuration + "ms");
+            console.log("[getMatchs] HKJC matches sample:", hkjc.slice(0, 2).map(m => ({ id: m.id, home: m.homeTeam?.name_en, away: m.awayTeam?.name_en })));
             
             if (hkjc.length === 0) {
-                return res.json([]);
+                console.log("[getMatchs] No matches from HKJC API");
+                
+                // Check if we have matches in database to return as fallback
+                console.log("[getMatchs] Checking database for existing matches as fallback...");
+                const matchesCol = collection(db, Tables.matches);
+                const matchesSnapshot = await getDocs(matchesCol);
+                const dbMatches = matchesSnapshot.empty ? [] : matchesSnapshot.docs.map(doc => {
+                    const data = doc.data();
+                    return {
+                        id: doc.id,
+                        kickOff: data.kickOff,
+                        ...data
+                    };
+                });
+                
+                if (dbMatches.length > 0) {
+                    // Sort by kickOff date
+                    const sortedMatches = dbMatches.sort((a, b) => {
+                        const dateA = new Date(a.kickOff);
+                        const dateB = new Date(b.kickOff);
+                        return dateA.getTime() - dateB.getTime();
+                    });
+                    console.log("[getMatchs] Returning", sortedMatches.length, "matches from database (HKJC API returned 0)");
+                    console.log("[getMatchs] Sample database matches:", sortedMatches.slice(0, 2).map((m: any) => ({ id: m.id || m.eventId, home: m.homeTeamName || 'N/A', away: m.awayTeamName || 'N/A', kickOff: m.kickOff })));
+                    if (!res.headersSent) {
+                        return res.json(sortedMatches);
+                    } else {
+                        console.warn("[getMatchs] Response already sent, cannot return database matches");
+                        return;
+                    }
+                }
+                
+                console.log("[getMatchs] No matches in database either, returning empty array");
+                console.log("[getMatchs] Response status will be 200 with empty array");
+                if (!res.headersSent) {
+                    return res.json([]);
+                } else {
+                    console.warn("[getMatchs] Response already sent, cannot send empty array");
+                    return;
+                }
             }
 
             // Always cleanup old matches that are no longer in HKJC API
@@ -301,6 +350,7 @@ class MatchController {
             }
 
             // Check if we have matches in DB
+            console.log("[getMatchs] Checking database for existing matches...");
             const matchesCol = collection(db, Tables.matches);
             const matchesSnapshot = await getDocs(matchesCol);
             const dbMatches = matchesSnapshot.empty ? [] : matchesSnapshot.docs.map(doc => {
@@ -311,6 +361,7 @@ class MatchController {
                     ...data
                 };
             });
+            console.log("[getMatchs] Found", dbMatches.length, "matches in database");
 
             // If not refreshing and we have matches in DB, check if HKJC has newer dates
             if (!refresh && dbMatches.length > 0) {
@@ -335,7 +386,13 @@ class MatchController {
                     });
 
                     console.log("[getMatchs] Returning", sortedMatches.length, "matches from database");
-                    return res.json(sortedMatches);
+                    console.log("[getMatchs] Sample matches:", sortedMatches.slice(0, 2).map((m: any) => ({ id: m.id || m.eventId, home: m.homeTeamName || 'N/A', away: m.awayTeamName || 'N/A' })));
+                    if (!res.headersSent) {
+                        return res.json(sortedMatches);
+                    } else {
+                        console.warn("[getMatchs] Response already sent, cannot return database matches");
+                        return;
+                    }
                 }
             } else if (!refresh && dbMatches.length === 0) {
                 console.log("[getMatchs] No matches in database, fetching from APIs...");
@@ -534,10 +591,34 @@ class MatchController {
             }
 
             console.log("[getMatchs] Returning", allMatches.length, "matches from APIs");
-            return res.json(allMatches);
+            console.log("[getMatchs] Sample matches:", allMatches.slice(0, 2).map(m => ({ id: m.eventId, home: m.homeTeamName, away: m.awayTeamName })));
+            const totalDuration = Date.now() - methodStartTime;
+            console.log("[getMatchs] Total method duration:", totalDuration + "ms");
+            
+            if (!res.headersSent) {
+                return res.json(allMatches);
+            } else {
+                console.warn("[getMatchs] Response already sent, cannot return API matches");
+                return;
+            }
         } catch (error) {
-            console.error("[getMatchs] Error fetching matches:", error);
-            return res.status(500).json({ error: error });
+            const totalDuration = Date.now() - methodStartTime;
+            console.error("========================================");
+            console.error("[getMatchs] ERROR occurred after", totalDuration + "ms");
+            console.error("[getMatchs] Error type:", error instanceof Error ? error.constructor.name : typeof error);
+            console.error("[getMatchs] Error message:", error instanceof Error ? error.message : String(error));
+            console.error("[getMatchs] Error stack:", error instanceof Error ? error.stack : 'No stack trace');
+            console.error("========================================");
+            
+            if (!res.headersSent) {
+                return res.status(500).json({ 
+                    error: 'Failed to fetch matches',
+                    message: error instanceof Error ? error.message : String(error),
+                    timestamp: new Date().toISOString()
+                });
+            } else {
+                console.error("[getMatchs] Response already sent, cannot send error response");
+            }
         }
     }
 

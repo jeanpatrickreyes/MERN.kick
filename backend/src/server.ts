@@ -18,13 +18,43 @@ const PORT = process.env.PORT || 3000;
 // For local development: specify exact origin and allow credentials
 // For production: can use wildcard or specific domain
 const corsOptions = {
-    origin: process.env.CORS_ORIGIN || (process.env.NODE_ENV === 'production' 
-        ? '*' // Production: allow all (or specify your domain)
-        : 'http://localhost:5173'), // Development: exact origin required for credentials
+    origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin) {
+            console.log('[CORS] Request with no origin, allowing');
+            return callback(null, true);
+        }
+        
+        const allowedOrigins = process.env.NODE_ENV === 'production'
+            ? [process.env.CORS_ORIGIN || 'https://kicksystem.ai']
+            : ['http://localhost:5173', 'http://localhost:3000', process.env.CORS_ORIGIN || 'https://kicksystem.ai'].filter(Boolean);
+        
+        console.log('[CORS] Checking origin:', origin);
+        console.log('[CORS] Allowed origins:', allowedOrigins);
+        console.log('[CORS] NODE_ENV:', process.env.NODE_ENV || 'development');
+        
+        if (allowedOrigins.includes(origin)) {
+            console.log('[CORS] Origin allowed:', origin);
+            callback(null, true);
+        } else {
+            console.error('[CORS] Origin NOT allowed:', origin);
+            console.error('[CORS] Allowed origins are:', allowedOrigins);
+            callback(new Error(`Not allowed by CORS. Origin: ${origin}, Allowed: ${allowedOrigins.join(', ')}`));
+        }
+    },
     credentials: true, // Required when using withCredentials: true in frontend
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Cache-Control', 'Pragma'],
 };
+
+// Request logging middleware (before CORS)
+app.use((req, res, next) => {
+    const timestamp = new Date().toISOString();
+    console.log(`[SERVER] ${timestamp} ${req.method} ${req.path}`);
+    console.log(`[SERVER] Origin: ${req.headers.origin || 'no-origin'}`);
+    console.log(`[SERVER] User-Agent: ${req.headers['user-agent']?.substring(0, 50) || 'no-user-agent'}`);
+    next();
+});
 
 app.use(cors(corsOptions));
 

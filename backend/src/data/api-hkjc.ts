@@ -32,25 +32,46 @@ export const ApiHKJC = async (): Promise<HKJC[]> => {
             }
         };
         
+        console.log("[ApiHKJC] Request payload:", JSON.stringify(queryWithDates, null, 2));
         const res = await API.POST("https://info.cld.hkjc.com/graphql/base/", queryWithDates);
+        
+        console.log("[ApiHKJC] Response status:", res.status);
+        console.log("[ApiHKJC] Response data keys:", res.data ? Object.keys(res.data) : 'no data');
+        
         if (res.status == 200) {
-            const matches = res.data.data.matches || [];
-            console.log("[ApiHKJC] Received", matches.length, "matches from HKJC API");
-            // Log date range of matches
-            if (matches.length > 0) {
-                const dates = matches.map((m: HKJC): string | undefined => {
-                    const date = m.matchDate?.split('+')[0]?.split('T')[0];
-                    return date;
-                }).filter((date: string | undefined): date is string => Boolean(date))
-                  .filter((v: string, i: number, a: string[]) => a.indexOf(v) === i)
-                  .sort();
-                if (dates.length > 0) {
-                    console.log("[ApiHKJC] Match dates range:", dates[0], "to", dates[dates.length - 1], "(" + dates.length + " unique dates)");
+            // Check response structure
+            if (res.data && res.data.data) {
+                console.log("[ApiHKJC] Response data.data keys:", Object.keys(res.data.data));
+                const matches = res.data.data.matches || [];
+                console.log("[ApiHKJC] Received", matches.length, "matches from HKJC API");
+                
+                // Log full response structure if no matches
+                if (matches.length === 0) {
+                    console.log("[ApiHKJC] Full response structure:", JSON.stringify(res.data, null, 2).substring(0, 1000));
+                    console.log("[ApiHKJC] Checking if matches array exists:", Array.isArray(res.data.data.matches));
+                    console.log("[ApiHKJC] matches value:", res.data.data.matches);
                 }
+                
+                // Log date range of matches
+                if (matches.length > 0) {
+                    const dates = matches.map((m: HKJC): string | undefined => {
+                        const date = m.matchDate?.split('+')[0]?.split('T')[0];
+                        return date;
+                    }).filter((date: string | undefined): date is string => Boolean(date))
+                      .filter((v: string, i: number, a: string[]) => a.indexOf(v) === i)
+                      .sort();
+                    if (dates.length > 0) {
+                        console.log("[ApiHKJC] Match dates range:", dates[0], "to", dates[dates.length - 1], "(" + dates.length + " unique dates)");
+                    }
+                }
+                return matches;
+            } else {
+                console.error("[ApiHKJC] Unexpected response structure. Full response:", JSON.stringify(res.data, null, 2).substring(0, 2000));
+                return [];
             }
-            return matches;
         }
         console.warn("[ApiHKJC] API returned status", res.status);
+        console.warn("[ApiHKJC] Response data:", res.data ? JSON.stringify(res.data, null, 2).substring(0, 1000) : 'no data');
         return [];
     } catch (error) {
         console.error("[ApiHKJC] Error fetching matches:", error);
