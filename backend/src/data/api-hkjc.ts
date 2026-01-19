@@ -3,32 +3,16 @@ import { HKJC } from "../model/hkjc.model";
 
 export const ApiHKJC = async (): Promise<HKJC[]> => {
     try {
-        // Calculate date range: today to 7 days in the future
-        // Use Hong Kong timezone to match HKJC's timezone
-        const now = new Date();
-        const hkOffset = 8 * 60; // Hong Kong is UTC+8
-        const hkTime = new Date(now.getTime() + (hkOffset - now.getTimezoneOffset()) * 60000);
-        
-        const today = new Date(hkTime);
-        today.setHours(0, 0, 0, 0);
-        
-        const futureDate = new Date(hkTime);
-        futureDate.setDate(futureDate.getDate() + 7);
-        futureDate.setHours(23, 59, 59, 999);
-        
-        const startDateStr = today.toISOString().split('T')[0];
-        const endDateStr = futureDate.toISOString().split('T')[0];
-        
-        console.log("[ApiHKJC] Fetching matches from", startDateStr, "to", endDateStr, "(HK timezone)");
+        console.log("[ApiHKJC] Fetching all matches from HKJC API");
         
         const queryWithDates = {
             ...base,
             variables: {
                 ...base.variables,
-                startDate: startDateStr,
-                endDate: endDateStr,
-                endIndex: 500, // Increased from 120 to get more matches
-                showAllMatch: true // Show all matches in the date range
+                startDate: null, // null means get all matches (not filtered by date)
+                endDate: null,   // null means get all matches (not filtered by date)
+                endIndex: 500,   // Increased to get more matches (max 500 recommended)
+                showAllMatch: true // Show all matches regardless of odds types availability
             }
         };
         
@@ -82,11 +66,11 @@ export const ApiHKJC = async (): Promise<HKJC[]> => {
 const base = {
     "query": "query matchList($startIndex: Int, $endIndex: Int, $startDate: String, $endDate: String, $matchIds: [String], $tournIds: [String], $fbOddsTypes: [FBOddsType]!, $fbOddsTypesM: [FBOddsType]!, $inplayOnly: Boolean, $featuredMatchesOnly: Boolean, $frontEndIds: [String], $earlySettlementOnly: Boolean, $showAllMatch: Boolean) {\n  matches(startIndex: $startIndex, endIndex: $endIndex, startDate: $startDate, endDate: $endDate, matchIds: $matchIds, tournIds: $tournIds, fbOddsTypes: $fbOddsTypesM, inplayOnly: $inplayOnly, featuredMatchesOnly: $featuredMatchesOnly, frontEndIds: $frontEndIds, earlySettlementOnly: $earlySettlementOnly, showAllMatch: $showAllMatch) {\n    id\n    frontEndId\n    matchDate\n    kickOffTime\n    status\n    updateAt\n    sequence\n    esIndicatorEnabled\n    homeTeam {\n      id\n      name_en\n      name_ch\n    }\n    awayTeam {\n      id\n      name_en\n      name_ch\n    }\n    tournament {\n      id\n      frontEndId\n      nameProfileId\n      isInteractiveServiceAvailable\n      code\n      name_en\n      name_ch\n    }\n    isInteractiveServiceAvailable\n    inplayDelay\n    venue {\n      code\n      name_en\n      name_ch\n    }\n    tvChannels {\n      code\n      name_en\n      name_ch\n    }\n    liveEvents {\n      id\n      code\n    }\n    featureStartTime\n    featureMatchSequence\n    poolInfo {\n      normalPools\n      inplayPools\n      sellingPools\n      ntsInfo\n      entInfo\n      definedPools\n    }\n    runningResult {\n      homeScore\n      awayScore\n      corner\n      homeCorner\n      awayCorner\n    }\n    runningResultExtra {\n      homeScore\n      awayScore\n      corner\n      homeCorner\n      awayCorner\n    }\n    adminOperation {\n      remark {\n        typ\n      }\n    }\n    foPools(fbOddsTypes: $fbOddsTypes) {\n      id\n      status\n      oddsType\n      instNo\n      inplay\n      name_ch\n      name_en\n      updateAt\n      expectedSuspendDateTime\n      lines {\n        lineId\n        status\n        condition\n        main\n        combinations {\n          combId\n          str\n          status\n          offerEarlySettlement\n          currentOdds\n          selections {\n            selId\n            str\n            name_ch\n            name_en\n          }\n        }\n      }\n    }\n  }\n}",
     "variables": {
-        "fbOddsTypes": ["HDC", "EDC"],
-        "fbOddsTypesM": ["HDC", "EDC"],
+        "fbOddsTypes": ["HDC", "EDC"], // Used to filter foPools (which odds pools to return for each match)
+        "fbOddsTypesM": ["HDC", "EDC"], // Used to filter matches (only matches with these odds types)
         "featuredMatchesOnly": false,
-        "startDate": null,
-        "endDate": null,
+        "startDate": null, // null = all dates
+        "endDate": null,   // null = all dates
         "tournIds": null,
         "matchIds": null,
         "tournId": null,
@@ -96,7 +80,7 @@ const base = {
         "endIndex": 120,
         "frontEndIds": null,
         "earlySettlementOnly": false,
-        "showAllMatch": false,
+        "showAllMatch": false, // When true, returns all matches regardless of fbOddsTypesM
         "tday": null,
         "tIdList": null
     }
