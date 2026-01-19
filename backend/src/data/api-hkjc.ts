@@ -3,12 +3,55 @@ import { HKJC } from "../model/hkjc.model";
 
 export const ApiHKJC = async (): Promise<HKJC[]> => {
     try {
-        const res = await API.POST("https://info.cld.hkjc.com/graphql/base/", base);
+        // Calculate date range: today to 7 days in the future
+        // Use Hong Kong timezone to match HKJC's timezone
+        const now = new Date();
+        const hkOffset = 8 * 60; // Hong Kong is UTC+8
+        const hkTime = new Date(now.getTime() + (hkOffset - now.getTimezoneOffset()) * 60000);
+        
+        const today = new Date(hkTime);
+        today.setHours(0, 0, 0, 0);
+        
+        const futureDate = new Date(hkTime);
+        futureDate.setDate(futureDate.getDate() + 7);
+        futureDate.setHours(23, 59, 59, 999);
+        
+        const startDateStr = today.toISOString().split('T')[0];
+        const endDateStr = futureDate.toISOString().split('T')[0];
+        
+        console.log("[ApiHKJC] Fetching matches from", startDateStr, "to", endDateStr, "(HK timezone)");
+        
+        const queryWithDates = {
+            ...base,
+            variables: {
+                ...base.variables,
+                startDate: startDateStr,
+                endDate: endDateStr,
+                endIndex: 500, // Increased from 120 to get more matches
+                showAllMatch: true // Show all matches in the date range
+            }
+        };
+        
+        const res = await API.POST("https://info.cld.hkjc.com/graphql/base/", queryWithDates);
         if (res.status == 200) {
-            return res.data.data.matches;
+            const matches = res.data.data.matches || [];
+            console.log("[ApiHKJC] Received", matches.length, "matches from HKJC API");
+            // Log date range of matches
+            if (matches.length > 0) {
+                const dates = matches.map(m => {
+                    const date = m.matchDate?.split('+')[0]?.split('T')[0];
+                    return date;
+                }).filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).sort();
+                if (dates.length > 0) {
+                    console.log("[ApiHKJC] Match dates range:", dates[0], "to", dates[dates.length - 1], "(" + dates.length + " unique dates)");
+                }
+            }
+            return matches;
         }
+        console.warn("[ApiHKJC] API returned status", res.status);
         return [];
     } catch (error) {
+        console.error("[ApiHKJC] Error fetching matches:", error);
         return [];
     }
 };

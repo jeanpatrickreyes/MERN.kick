@@ -4,6 +4,7 @@ import ThemedText from "../../../components/themedText";
 import AppAssets from "../../../ultis/assets";
 import AppColors from "../../../ultis/colors";
 import { getTeamNameInCurrentLanguage } from "../../../ultis/languageUtils";
+import Crown from "../../../components/crown";
 
 
 interface Props {
@@ -82,6 +83,7 @@ function DetailsCardComponent({
                                             {`     ${conditionHome.replace(".0", "")}`}
                                         </ThemedText> : undefined
                                 }
+                                <Crown winRate={homeWin} size="w-4" className="ml-2" />
                             </div>
                             <span>{homeWin.toFixed(0)}%</span>
                         </div>
@@ -136,6 +138,7 @@ function DetailsCardComponent({
                                             {`     ${conditionAway.replace(".0", "")}`}
                                         </ThemedText> : undefined
                                 }
+                                <Crown winRate={awayWin} size="w-4" className="ml-2" />
                             </div>
                             <span>{awayWin.toFixed(0)}%</span>
                         </div>
@@ -159,7 +162,7 @@ function DetailsCardComponent({
             <div className="sm:w-2/3 w-5/6 flex flex-col h-48 bg-white rounded-lg mt-5 items-center justify-center">
 
                 <div className="flex items-start sm:w-2/3 w-5/6 mb-2">
-                    <Card name={getTeamNameInCurrentLanguage(probability.homeLanguages, probability.homeTeamName)} condition={probability.condition ? probability.condition.split(',')[0] : undefined} img={probability.homeTeamLogo} probility={homeWin} win={homeWin > 70 && homeWin > awayWin && homeWin > draw} />
+                    <Card name={getTeamNameInCurrentLanguage(probability.homeLanguages, probability.homeTeamName)} condition={probability.condition ? probability.condition.split(',')[0] : undefined} img={probability.homeTeamLogo} probility={homeWin} />
                 </div>
 
                 <p className="sm:text-sm text-sm sm:h-4 h-4 font-bold text-black text-center">
@@ -202,7 +205,7 @@ function DetailsCardComponent({
             <div className="sm:w-2/3 w-5/6 flex flex-col h-48 bg-white rounded-lg mt-5 items-center justify-center">
 
                 <div className="flex items-start sm:w-2/3 w-5/6 mb-2">
-                    <Card name={getTeamNameInCurrentLanguage(probability.awayLanguages, probability.awayTeamName)} condition={probability.condition ? probability.condition.split(',')[1] : undefined} img={probability.awayTeamLogo} probility={awayWin} win={awayWin > 70 && awayWin > homeWin && awayWin > draw} />
+                    <Card name={getTeamNameInCurrentLanguage(probability.awayLanguages, probability.awayTeamName)} condition={probability.condition ? probability.condition.split(',')[1] : undefined} img={probability.awayTeamLogo} probility={awayWin} />
                 </div>
 
                 <p className="sm:text-sm text-xs sm:h-4 h-4 font-bold text-black text-center">
@@ -248,14 +251,13 @@ function DetailsCardComponent({
 
 
 interface PropsCard {
-    img?: string, name: string, probility: number, win: boolean, condition?: string
+    img?: string, name: string, probility: number, condition?: string
 }
 
 function Card({
     img,
     name,
     probility,
-    win,
     condition
 }: PropsCard) {
     return <div style={{ flexDirection: "row" }}>
@@ -313,15 +315,8 @@ function Card({
 
             </div>
 
-            {win ?
-                <>
-                    <div style={{ width: 10 }} />
-                    <img src={AppAssets.crown}
-                        style={{ marginBottom: 5 }}
-                        className="w-5" />
-                </>
-                : undefined
-            }
+            <div style={{ width: 10 }} />
+            <Crown winRate={probility} />
 
 
         </div>

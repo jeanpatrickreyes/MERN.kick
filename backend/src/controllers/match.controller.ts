@@ -300,34 +300,47 @@ class MatchController {
                 }
             }
 
-            // If not refreshing, check if we have matches in DB and return them
-            if (!refresh) {
-                const matchesCol = collection(db, Tables.matches);
-                const matchesSnapshot = await getDocs(matchesCol);
-                
-                if (!matchesSnapshot.empty) {
-                    const matchesList = matchesSnapshot.docs.map(doc => {
-                        const data = doc.data();
-                        return {
-                            id: doc.id,
-                            kickOff: data.kickOff,
-                            ...data
-                        };
-                    });
+            // Check if we have matches in DB
+            const matchesCol = collection(db, Tables.matches);
+            const matchesSnapshot = await getDocs(matchesCol);
+            const dbMatches = matchesSnapshot.empty ? [] : matchesSnapshot.docs.map(doc => {
+                const data = doc.data();
+                return {
+                    id: doc.id,
+                    kickOff: data.kickOff,
+                    ...data
+                };
+            });
 
+            // If not refreshing and we have matches in DB, check if HKJC has newer dates
+            if (!refresh && dbMatches.length > 0) {
+                // Get the latest date from database
+                const dbDates = dbMatches.map(m => m.kickOff?.split(' ')[0]).filter(Boolean).sort();
+                const latestDbDate = dbDates[dbDates.length - 1];
+                
+                // Get dates from HKJC API response
+                const hkjcDates = hkjc.map(m => m.matchDate?.split('+')[0]?.split('T')[0]).filter(Boolean).sort();
+                const latestHkjcDate = hkjcDates[hkjcDates.length - 1];
+                
+                // If HKJC has matches for dates beyond what's in DB, or if refresh is requested, fetch fresh data
+                if (latestHkjcDate && latestDbDate && latestHkjcDate > latestDbDate) {
+                    console.log("[getMatchs] HKJC has newer matches (latest:", latestHkjcDate, "vs DB:", latestDbDate, "), fetching fresh data...");
+                    // Continue to fetch fresh data below
+                } else {
                     // Sort by kickOff date
-                    const sortedMatches = matchesList.sort((a, b) => {
+                    const sortedMatches = dbMatches.sort((a, b) => {
                         const dateA = new Date(a.kickOff);
                         const dateB = new Date(b.kickOff);
                         return dateA.getTime() - dateB.getTime();
                     });
 
-                    console.log("[getMatchs] Returning", sortedMatches.length, "matches from database (after cleanup)");
+                    console.log("[getMatchs] Returning", sortedMatches.length, "matches from database");
                     return res.json(sortedMatches);
                 }
+            } else if (!refresh && dbMatches.length === 0) {
                 console.log("[getMatchs] No matches in database, fetching from APIs...");
             } else {
-                console.log("[getMatchs] Refresh requested, fetching from APIs...");
+                console.log("[getMatchs] Refresh requested or new matches detected, fetching from APIs...");
             }
 
             // Fetch from FootyLogic API (optional enrichment)

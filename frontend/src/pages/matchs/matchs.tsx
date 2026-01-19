@@ -45,11 +45,8 @@ function MatchsPage() {
             const dateStr = m.kickOff.split(' ')[0];
             const [_, month, day] = dateStr.split('-');
             const formatted = `${day}/${month}`;
-            if (dates.includes(formatted)) {
-                m.matchDateFormated = formatted;
-            } else {
-                m.matchDateFormated = "";
-            }
+            // Always set matchDateFormated for all matches, even if not in dates array
+            m.matchDateFormated = formatted;
             return m;
         });
         setMatchs(allMatch);
@@ -68,7 +65,6 @@ function MatchsPage() {
             if (!datasUnicas.includes(formatada)) {
                 datasUnicas.push(formatada);
             }
-            if (datasUnicas.length >= 10) break;
         }
         return datasUnicas.reverse();
     }

@@ -5,6 +5,7 @@ import AppAssets from "../../../ultis/assets";
 import AppColors from "../../../ultis/colors";
 import { NavigateFunction } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import Crown from "../../../components/crown";
 
 export type Props = {
     teams: string[]
@@ -70,22 +71,25 @@ export function CardMatchComponent({
                     <div className="flex gap-2 items-center justify-end mr-4" style={{ width: "70%" }}>
                         <div>
                             <div style={{ height: 10 }} />
-                            <ThemedText
-                                className="font-bold text-[9px] sm:text-[14px] leading-tight"
-                                type="defaultSemiBold"
-                                style={{
-                                    color: AppColors.primary,
-                                    textAlign: "right",
-                                    overflow: "hidden",
-                                    textOverflow: "ellipsis",
-                                    whiteSpace: "normal",
-                                    display: "-webkit-box",
-                                    WebkitLineClamp: 2,
-                                    WebkitBoxOrient: 'vertical',
-                                }}
-                            >
-                                {teams[0]}
-                            </ThemedText>
+                            <div className="flex items-center justify-end gap-1">
+                                <ThemedText
+                                    className="font-bold text-[9px] sm:text-[14px] leading-tight"
+                                    type="defaultSemiBold"
+                                    style={{
+                                        color: AppColors.primary,
+                                        textAlign: "right",
+                                        overflow: "hidden",
+                                        textOverflow: "ellipsis",
+                                        whiteSpace: "normal",
+                                        display: "-webkit-box",
+                                        WebkitLineClamp: 2,
+                                        WebkitBoxOrient: 'vertical',
+                                    }}
+                                >
+                                    {teams[0]}
+                                </ThemedText>
+                                {homeWin && <Crown winRate={homeWin} size="w-3 sm:w-4" />}
+                            </div>
 
                             <div style={{ height: 5 }} />
 
@@ -135,13 +139,6 @@ export function CardMatchComponent({
                         >
                             {timeOnly}
                         </ThemedText>
-
-                        {
-                            homeWin && awayWin && (homeWin > 70 || awayWin > 70)
-                                ? <span className="text-yellow-500 text-2xl">★</span>
-                                : <div />
-                        }
-
                     </div>
 
                     <div className="flex gap-2 items-center justify-start ml-4" style={{ width: "70%" }}>
@@ -156,22 +153,25 @@ export function CardMatchComponent({
                                 : <></>
                         }
                         <div>
-                            <ThemedText
-                                className="font-bold text-[9px] sm:text-[14px] leading-tight"
-                                type="defaultSemiBold"
-                                style={{
-                                    color: AppColors.primary,
-                                    textAlign: "left",
-                                    overflow: "hidden",
-                                    textOverflow: "ellipsis",
-                                    whiteSpace: "normal",
-                                    display: "-webkit-box",
-                                    WebkitLineClamp: 2,
-                                    WebkitBoxOrient: 'vertical',
-                                }}
-                            >
-                                {teams[1]}
-                            </ThemedText>
+                            <div className="flex items-center gap-1">
+                                <ThemedText
+                                    className="font-bold text-[9px] sm:text-[14px] leading-tight"
+                                    type="defaultSemiBold"
+                                    style={{
+                                        color: AppColors.primary,
+                                        textAlign: "left",
+                                        overflow: "hidden",
+                                        textOverflow: "ellipsis",
+                                        whiteSpace: "normal",
+                                        display: "-webkit-box",
+                                        WebkitLineClamp: 2,
+                                        WebkitBoxOrient: 'vertical',
+                                    }}
+                                >
+                                    {teams[1]}
+                                </ThemedText>
+                                {awayWin && <Crown winRate={awayWin} size="w-3 sm:w-4" />}
+                            </div>
                             <div style={{ height: 5 }} />
 
                             <div className="flex flex-row">

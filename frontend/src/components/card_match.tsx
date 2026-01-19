@@ -6,9 +6,9 @@ import { useTranslation } from "react-i18next";
 import moment from 'moment-timezone';
 import { Probability } from "../models/probability";
 import useIsMobile from "../hooks/useIsMobile";
-import AppAssets from "../ultis/assets";
 import API from "../api/api";
 import AppGlobal from "../ultis/global";
+import Crown from "./crown";
 
 export type Props = {
     teams: string[]
@@ -90,24 +90,26 @@ export function CardMatch({
                         </div>
                     </div>
 
-                    <div className="flex flex-col items-center">
-                        <div className="text-center space-y-1 flex-row flex items-center justify-center ml-2 mr-2">
+                    <div className="flex flex-col items-center justify-center">
+                        {/* Show crowns for the team with higher win rate above REPORT */}
+                        {(() => {
+                            const higherWinRate = homeWin && awayWin 
+                                ? (homeWin > awayWin ? homeWin : awayWin)
+                                : (homeWin || awayWin);
+                            return higherWinRate && higherWinRate > 70 ? (
+                                <div className="mb-1.5 flex justify-center">
+                                    <Crown winRate={higherWinRate} size="w-4 sm:w-5" />
+                                </div>
+                            ) : null;
+                        })()}
+                        <div className="flex flex-row items-center justify-center gap-1.5">
                             <FaBasketball color="#fc3a45" size={isMobile ? 5 : 10} />
-                            <div style={{ width: 5 }} />
                             <div
                                 className="sm:text-[12px] text-[5px] font-semibold text-black/80 hover:text-red-600 transition duration-200"
                             >
                                 REPORT
                             </div>
                         </div>
-
-                        {
-                            homeWin && awayWin && (homeWin > 70 || awayWin > 70)
-                                ? <img src={AppAssets.crown}
-                                    style={{ marginBottom: 5 }}
-                                    className="w-5" />
-                                : <div />
-                        }
                     </div>
 
                     <div className="flex items-center space-y-1 flex-row">
