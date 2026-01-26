@@ -5,6 +5,7 @@ export default {
     extend: {
       fontFamily: {
         body: ['Oswald', 'sans-serif'],
+        poppins: ['Poppins', 'sans-serif'],
       },
       keyframes: {
         'pulse-scale': {
