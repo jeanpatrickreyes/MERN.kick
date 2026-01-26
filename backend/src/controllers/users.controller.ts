@@ -1,10 +1,11 @@
 import { Request, Response } from "express";
-import { auth, db } from "../firebase/firebase";
-import { collection, doc, getDoc, getDocs, query, setDoc, where } from "firebase/firestore";
+import { db } from "../firebase/firebase";
+import { collection, doc, getDoc, getDocs, query, setDoc, where } from "../database/db";
 import bcrypt from "bcrypt";
 import { SessionService } from "../service/sessionService";
 import Tables from "../ultis/tables.ultis";
-import { createUserWithEmailAndPassword, sendPasswordResetEmail, signInWithEmailAndPassword } from "firebase/auth";
+import { AuthService } from "../service/authService";
+import { v4 as uuidv4 } from "uuid";
 
 class UsersController {
 
@@ -15,9 +16,6 @@ class UsersController {
             return res.status(400).json({ error: "email and password are required." });
         }
         try {
-            const userCredential = await signInWithEmailAndPassword(auth, email, password);
-            const user = userCredential.user;
-
             let userId: string;
             const membersRefAdmin = collection(db, Tables.admins);
             const qAdmin = query(membersRefAdmin, where("email", "==", email));
@@ -41,11 +39,16 @@ class UsersController {
                 userData = doc.data();
                 userId = doc.id;
             }
-            /*
-                        const passwordMatch = await bcrypt.compare(password, userData.password);
-                        if (!passwordMatch) {
-                            return res.status(401).json({ error: "Invalid password." });
-                        }*/
+
+            // Verify password using bcrypt
+            if (!userData.password) {
+                return res.status(401).json({ error: "Invalid credentials." });
+            }
+            
+            const passwordMatch = await bcrypt.compare(password, userData.password);
+            if (!passwordMatch) {
+                return res.status(401).json({ error: "Invalid password." });
+            }
 
             const sessionId = await SessionService.createSession(userId);
             res.cookie("sessionId", sessionId, {
@@ -67,15 +70,27 @@ class UsersController {
         }
 
         try {
-            await sendPasswordResetEmail(auth, email);
-            return res.json({ message: "Password reset email sent." });
+            // Check if user exists
+            const membersRef = collection(db, Tables.members);
+            const q = query(membersRef, where("email", "==", email));
+            const querySnapshot = await getDocs(q);
+            
+            const adminsRef = collection(db, Tables.admins);
+            const qAdmin = query(adminsRef, where("email", "==", email));
+            const querySnapshotAdmin = await getDocs(qAdmin);
+
+            if (querySnapshot.empty && querySnapshotAdmin.empty) {
+                return res.status(404).json({ error: "User not found." });
+            }
+
+            // Note: Password reset email functionality needs to be implemented
+            // with a local email service (not Google/Firebase)
+            // For now, return a message indicating the feature needs implementation
+            return res.status(501).json({ 
+                error: "Password reset email functionality needs to be implemented with a local email service." 
+            });
         } catch (error: any) {
             console.error("Password reset error:", error);
-            if (error.code === 'auth/user-not-found') {
-                return res.status(404).json({ error: "User not found." });
-            } else if (error.code === 'auth/invalid-email') {
-                return res.status(400).json({ error: "Invalid email format." });
-            }
             return res.status(500).json({ error: "Internal server error." });
         }
     }
@@ -104,8 +119,8 @@ class UsersController {
             const saltRounds = 10;
             const hashedPassword = await bcrypt.hash(password, saltRounds);
 
-            const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-            const uid = userCredential.user.uid;
+            // Generate unique ID for user
+            const uid = uuidv4();
 
             const newMember = {
                 admin_id: null,

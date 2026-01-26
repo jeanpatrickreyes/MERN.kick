@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from "uuid";
-import { doc, setDoc, getDoc, deleteDoc, Timestamp, query, collection, getDocs, where } from "firebase/firestore";
+import { doc, setDoc, getDoc, deleteDoc, Timestamp, query, collection, getDocs, where } from "../database/db";
 import { db } from "../firebase/firebase";
 import Tables from "../ultis/tables.ultis";
 
@@ -16,7 +16,7 @@ export class SessionService {
         const expiresAt = Timestamp.fromDate(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000));
         await setDoc(doc(db, Tables.sessions, sessionId), {
             userId: String(userId),
-            expiresAt,
+            expiresAt: expiresAt.toMillis(), // Store as milliseconds for easier comparison
         });
 
         return sessionId;
@@ -29,9 +29,12 @@ export class SessionService {
         if (!sessionDoc.exists()) return null;
 
         const sessionData = sessionDoc.data();
-        const now = Timestamp.now();
+        const now = Date.now();
 
-        if (sessionData.expiresAt.toMillis() < now.toMillis()) {
+        // Handle both Timestamp objects and millisecond numbers
+        const expiresAt = sessionData.expiresAt?.toMillis ? sessionData.expiresAt.toMillis() : sessionData.expiresAt;
+
+        if (expiresAt < now) {
             await deleteDoc(doc(db, Tables.sessions, sessionId));
             return null;
         }

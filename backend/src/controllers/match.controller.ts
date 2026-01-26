@@ -4,7 +4,7 @@ import { Daum, FootyLogic } from "model/footylogic.model";
 import { FootyLogicDetails } from "model/footylogic_details.model";
 import { AwayTeam, HomeTeam, RecentMatch } from "model/footylogic_last_games";
 import { Match } from "model/match.model";
-import { collection, deleteDoc, doc, getDoc, getDocs, setDoc, writeBatch } from 'firebase/firestore'
+import { collection, deleteDoc, doc, getDoc, getDocs, setDoc, writeBatch } from '../database/db'
 import { db } from "../firebase/firebase";
 import Global from "../ultis/global.ultis";
 import Tables from "../ultis/tables.ultis";
@@ -349,24 +349,26 @@ class MatchController {
                 }
             }
 
-            // Check if we have matches in DB
+            // Check if we have matches in DB - create a map for quick lookup
             console.log("[getMatchs] Checking database for existing matches...");
             const matchesCol = collection(db, Tables.matches);
             const matchesSnapshot = await getDocs(matchesCol);
-            const dbMatches = matchesSnapshot.empty ? [] : matchesSnapshot.docs.map(doc => {
+            const dbMatchesMap = new Map<string, any>();
+            matchesSnapshot.docs.forEach(doc => {
                 const data = doc.data();
-                return {
+                dbMatchesMap.set(data.eventId || doc.id, {
                     id: doc.id,
                     kickOff: data.kickOff,
                     ...data
-                };
+                });
             });
-            console.log("[getMatchs] Found", dbMatches.length, "matches in database");
+            console.log("[getMatchs] Found", dbMatchesMap.size, "matches in database");
 
             // If not refreshing and we have matches in DB, check if HKJC has newer dates
-            if (!refresh && dbMatches.length > 0) {
+            const dbMatchesArray = Array.from(dbMatchesMap.values());
+            if (!refresh && dbMatchesArray.length > 0) {
                 // Get the latest date from database
-                const dbDates = dbMatches.map(m => m.kickOff?.split(' ')[0]).filter(Boolean).sort();
+                const dbDates = dbMatchesArray.map(m => m.kickOff?.split(' ')[0]).filter(Boolean).sort();
                 const latestDbDate = dbDates[dbDates.length - 1];
                 
                 // Get dates from HKJC API response
@@ -379,14 +381,14 @@ class MatchController {
                     // Continue to fetch fresh data below
                 } else {
                     // Sort by kickOff date
-                    const sortedMatches = dbMatches.sort((a, b) => {
+                    const sortedMatches = dbMatchesArray.sort((a, b) => {
                         const dateA = new Date(a.kickOff);
                         const dateB = new Date(b.kickOff);
                         return dateA.getTime() - dateB.getTime();
                     });
 
                     console.log("[getMatchs] Returning", sortedMatches.length, "matches from database");
-                    console.log("[getMatchs] Sample matches:", sortedMatches.slice(0, 2).map((m: any) => ({ id: m.id || m.eventId, home: m.homeTeamName || 'N/A', away: m.awayTeamName || 'N/A' })));
+                    console.log("[getMatchs] Sample matches:", sortedMatches.slice(0, 2).map((m: any) => ({ id: m.id || m.eventId, home: m.homeTeamName || 'N/A', away: m.awayTeamName || 'N/A', hasPredictions: !!m.predictions, hasIA: !!m.ia })));
                     if (!res.headersSent) {
                         return res.json(sortedMatches);
                     } else {
@@ -394,7 +396,7 @@ class MatchController {
                         return;
                     }
                 }
-            } else if (!refresh && dbMatches.length === 0) {
+            } else if (!refresh && dbMatchesArray.length === 0) {
                 console.log("[getMatchs] No matches in database, fetching from APIs...");
             } else {
                 console.log("[getMatchs] Refresh requested or new matches detected, fetching from APIs...");
@@ -426,6 +428,9 @@ class MatchController {
             
             // Create match objects from all HKJC matches
             for (const hkjcMatch of hkjc) {
+                // Check if this match already exists in database
+                const existingMatch = dbMatchesMap.get(hkjcMatch.id);
+                
                 // Parse HKJC date and time
                 // matchDate might be "YYYY-MM-DD" or "YYYY-MM-DD+HH:mm" 
                 // kickOffTime might be "HH:mm" or full ISO datetime
@@ -476,6 +481,39 @@ class MatchController {
                         zhCN: hkjcMatch.awayTeam?.name_ch || ""
                     }
                 } as Match;
+                
+                // Merge existing match data (preserve predictions, IA, lastGames, etc.)
+                if (existingMatch) {
+                    // Preserve predictions and IA for crowns
+                    if (existingMatch.predictions) {
+                        match.predictions = existingMatch.predictions;
+                    }
+                    if (existingMatch.ia) {
+                        match.ia = existingMatch.ia;
+                    }
+                    if (existingMatch.ia2) {
+                        match.ia2 = existingMatch.ia2;
+                    }
+                    // Preserve lastGames if available
+                    if (existingMatch.lastGames) {
+                        match.lastGames = existingMatch.lastGames;
+                    }
+                    // Preserve forms if available (more accurate than FootyLogic)
+                    if (existingMatch.homeForm) {
+                        match.homeForm = existingMatch.homeForm;
+                    }
+                    if (existingMatch.awayForm) {
+                        match.awayForm = existingMatch.awayForm;
+                    }
+                    // Preserve other calculated fields
+                    if (existingMatch.fixture_id) {
+                        match.fixture_id = existingMatch.fixture_id;
+                    }
+                    if (existingMatch.league_id) {
+                        match.league_id = existingMatch.league_id;
+                    }
+                    console.log("[getMatchs] Merged existing match data for", hkjcMatch.id, "- predictions:", !!match.predictions, "ia:", !!match.ia);
+                }
 
                 // Enrich with FootyLogic data if available
                 const footylogicEvent = footylogicEventsMap.get(hkjcMatch.id);
@@ -547,8 +585,171 @@ class MatchController {
                     if (footylogicDetails.awayTeamId) {
                         match.awayTeamId = footylogicDetails.awayTeamId;
                     }
+                    // Preserve fixture_id and league_id from FootyLogic if available
+                    if (footylogicDetails.fixture_id) {
+                        match.fixture_id = footylogicDetails.fixture_id;
+                    }
+                    if (footylogicDetails.league_id) {
+                        match.league_id = footylogicDetails.league_id;
+                    }
                 }
             });
+            
+            // Calculate predictions and IA for matches that don't have them but have required data
+            console.log("[getMatchs] Checking for matches that need predictions/IA calculation...");
+            let matchesNeedingCalc = 0;
+            let matchesWithPredictions = 0;
+            let matchesWithIA = 0;
+            
+            const calculationPromises = allMatches.map(async (match) => {
+                // Skip if match already has predictions and IA
+                if (match.predictions && match.ia && match.ia.home && match.ia.away) {
+                    matchesWithPredictions++;
+                    matchesWithIA++;
+                    return match;
+                }
+                
+                matchesNeedingCalc++;
+                const matchId = match.eventId;
+                
+                // Need fixture_id for predictions
+                let fixture_id = match.fixture_id;
+                let needsPredictions = !match.predictions;
+                let needsIA = !match.ia || !match.ia.home || !match.ia.away;
+                
+                // Try to get fixture_id if not available but we have team names and date
+                if (!fixture_id && (needsPredictions || needsIA) && match.homeTeamNameEn && match.awayTeamNameEn && match.kickOffDate) {
+                    try {
+                        const [month, day, year] = match.kickOffDate.split("/");
+                        if (month && day && year) {
+                            const formattedDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+                            let team = await ApiFixtureByDate(formattedDate);
+                            
+                            if (team && Array.isArray(team) && team.length > 0) {
+                                const fixture = await matchTeamSimilarity(team, match.homeTeamNameEn, match.awayTeamNameEn);
+                                if (fixture && fixture.id) {
+                                    fixture_id = fixture.id;
+                                    match.fixture_id = fixture.id;
+                                    if (fixture.league_id) {
+                                        match.league_id = fixture.league_id;
+                                    }
+                                    if (fixture.homeLogo && !match.homeTeamLogo) {
+                                        match.homeTeamLogo = fixture.homeLogo;
+                                    }
+                                    if (fixture.awayLogo && !match.awayTeamLogo) {
+                                        match.awayTeamLogo = fixture.awayLogo;
+                                    }
+                                    console.log("[getMatchs] Found fixture_id", fixture_id, "for match", match.eventId);
+                                }
+                            }
+                        }
+                    } catch (error) {
+                        console.error("[getMatchs] Error fetching fixture for match", match.eventId, ":", error);
+                    }
+                }
+                
+                // Calculate predictions if needed and we have fixture_id
+                if (needsPredictions && fixture_id) {
+                    try {
+                        console.log("[getMatchs] Starting predictions calculation for match", matchId, "with fixture_id", fixture_id);
+                        const predictions = await Predictions(fixture_id);
+                        if (predictions) {
+                            match.predictions = predictions;
+                            matchesWithPredictions++;
+                            console.log("[getMatchs] ✓ Calculated predictions for match", matchId, "- home:", predictions.homeWinRate.toFixed(1), "%, away:", predictions.awayWinRate.toFixed(1), "%");
+                        } else {
+                            console.warn("[getMatchs] ✗ Predictions returned null for match", matchId);
+                        }
+                    } catch (error) {
+                        console.error("[getMatchs] ✗ Error calculating predictions for match", matchId, ":", error instanceof Error ? error.message : String(error));
+                    }
+                } else {
+                    if (!fixture_id) {
+                        console.log("[getMatchs] ⚠ Skipping predictions for match", matchId, "- no fixture_id");
+                    }
+                }
+                
+                // Calculate IA if needed and we have homeForm/awayForm
+                if (needsIA && match.homeForm && match.awayForm) {
+                    try {
+                        let playersInjured = { home: [], away: [] };
+                        // Get injured players if we have fixture_id and league_id
+                        if (fixture_id && match.league_id && match.homeTeamId && match.awayTeamId) {
+                            try {
+                                const dateStr = match.kickOff?.split(' ')[0];
+                                playersInjured = await ApiTopScoreInjured(fixture_id, match.league_id, dateStr, match.homeTeamId, match.awayTeamId);
+                            } catch (error) {
+                                console.warn("[getMatchs] Could not fetch injured players for match", match.eventId);
+                            }
+                        }
+                        
+                        // Try to get lastGames if not available
+                        if (!match.lastGames && match.homeTeamName && match.awayTeamName) {
+                            try {
+                                const lastGamesResult = await API.GET(Global.footylogicDetails + match.eventId);
+                                if (lastGamesResult.status === 200 && lastGamesResult.data.statusCode === 200) {
+                                    const resultRecentForm = lastGamesResult.data.data;
+                                    match.lastGames = parseToInformationForm(resultRecentForm, match.homeTeamName, match.awayTeamName);
+                                }
+                            } catch (error) {
+                                // Ignore if lastGames can't be fetched
+                                console.warn("[getMatchs] Could not fetch lastGames for match", match.eventId);
+                            }
+                        }
+                        
+                        // Calculate IA
+                        console.log("[getMatchs] Starting IA calculation for match", matchId);
+                        const resultIa = await IaProbality(match, playersInjured);
+                        if (resultIa) {
+                            const total = resultIa.home + resultIa.away;
+                            const homeShare = resultIa.home / total;
+                            const awayShare = resultIa.away / total;
+                            const redistributedHome = resultIa.home + resultIa.draw * homeShare;
+                            const redistributedAway = resultIa.away + resultIa.draw * awayShare;
+                            match.ia = {
+                                home: Number(redistributedHome.toFixed(2)),
+                                away: Number(redistributedAway.toFixed(2)),
+                                draw: resultIa.draw
+                            };
+                            matchesWithIA++;
+                            console.log("[getMatchs] ✓ Calculated IA for match", matchId, "- home:", match.ia.home.toFixed(1), "%, away:", match.ia.away.toFixed(1), "%");
+                        } else {
+                            // Fallback to CalculationProbality if IaProbality fails
+                            console.log("[getMatchs] IA calculation returned null, trying fallback for match", matchId);
+                            const homeWinRate = match.predictions?.homeWinRate || 50;
+                            const awayWinRate = match.predictions?.awayWinRate || 50;
+                            const result = CalculationProbality(playersInjured, homeWinRate, awayWinRate, match.homeForm.split(","), match.awayForm.split(","));
+                            if (result) {
+                                match.ia = result;
+                                matchesWithIA++;
+                                console.log("[getMatchs] ✓ Calculated IA (fallback) for match", matchId, "- home:", result.home.toFixed(1), "%, away:", result.away.toFixed(1), "%");
+                            } else {
+                                console.warn("[getMatchs] ✗ IA fallback also returned null for match", matchId);
+                            }
+                        }
+                    } catch (error) {
+                        console.error("[getMatchs] ✗ Error calculating IA for match", matchId, ":", error instanceof Error ? error.message : String(error));
+                    }
+                } else {
+                    if (!match.homeForm || !match.awayForm) {
+                        console.log("[getMatchs] ⚠ Skipping IA for match", matchId, "- missing homeForm or awayForm");
+                    }
+                }
+                
+                return match;
+            });
+            
+            // Calculate predictions/IA in parallel - WAIT for all to complete
+            console.log("[getMatchs] Starting calculations for", matchesNeedingCalc, "matches...");
+            const startCalcTime = Date.now();
+            const calculationResults = await Promise.allSettled(calculationPromises);
+            const calcDuration = Date.now() - startCalcTime;
+            
+            // Log results
+            const successful = calculationResults.filter(r => r.status === 'fulfilled').length;
+            const failed = calculationResults.filter(r => r.status === 'rejected').length;
+            console.log("[getMatchs] Calculations completed:", successful, "succeeded,", failed, "failed in", calcDuration, "ms");
+            console.log("[getMatchs] Summary - Matches with predictions:", matchesWithPredictions, ", with IA:", matchesWithIA, "out of", allMatches.length);
 
             // Convert Chinese names to simplified Chinese for all matches
             const convertPromises = allMatches.map(async (match) => {
@@ -576,24 +777,55 @@ class MatchController {
                 return dateA.getTime() - dateB.getTime();
             });
 
-            // Save matches to database
+            // Save matches to database - use setDoc with merge to preserve existing fields
             console.log("[getMatchs] Saving", allMatches.length, "matches to database...");
-            const batch = writeBatch(db);
-            allMatches.forEach(match => {
+            const savePromises = allMatches.map(async (match) => {
                 const matchRef = doc(db, Tables.matches, match.eventId);
-                batch.set(matchRef, match);
+                // Use merge: true to preserve existing fields like predictions and IA
+                await setDoc(matchRef, match, { merge: true });
             });
             try {
-                await batch.commit();
-                console.log("[getMatchs] Successfully saved matches to database");
+                await Promise.all(savePromises);
+                console.log("[getMatchs] Successfully saved matches to database (with merge to preserve predictions/IA)");
             } catch (error) {
                 console.error("[getMatchs] Error saving matches to database:", error);
             }
 
+            // Log matches with predictions/IA for debugging
+            const matchesWithCrowns = allMatches.filter(m => (m.ia && (m.ia.home > 70 || m.ia.away > 70)) || (m.predictions && (m.predictions.homeWinRate > 70 || m.predictions.awayWinRate > 70)));
+            console.log("[getMatchs] Matches with crown data:", matchesWithCrowns.length, "out of", allMatches.length);
+            if (matchesWithCrowns.length > 0) {
+                console.log("[getMatchs] Sample matches with crowns:", matchesWithCrowns.slice(0, 3).map(m => ({ 
+                    id: m.eventId, 
+                    home: m.homeTeamName, 
+                    away: m.awayTeamName,
+                    ia: m.ia ? { home: m.ia.home, away: m.ia.away } : null,
+                    predictions: m.predictions ? { home: m.predictions.homeWinRate, away: m.predictions.awayWinRate } : null
+                })));
+            }
+            
+            // Final verification - ensure predictions/IA are in the response
+            const matchesWithData = allMatches.filter(m => m.predictions || (m.ia && m.ia.home && m.ia.away));
+            console.log("[getMatchs] Final check - Matches with predictions or IA in response:", matchesWithData.length, "out of", allMatches.length);
+            
+            // Log detailed sample of what's being returned
             console.log("[getMatchs] Returning", allMatches.length, "matches from APIs");
-            console.log("[getMatchs] Sample matches:", allMatches.slice(0, 2).map(m => ({ id: m.eventId, home: m.homeTeamName, away: m.awayTeamName })));
+            allMatches.slice(0, 3).forEach((m, idx) => {
+                console.log(`[getMatchs] Match ${idx + 1}:`, {
+                    id: m.eventId, 
+                    home: m.homeTeamName, 
+                    away: m.awayTeamName,
+                    hasPredictions: !!m.predictions,
+                    hasIA: !!m.ia,
+                    homeWinRate: m.ia?.home || m.predictions?.homeWinRate || 'N/A',
+                    awayWinRate: m.ia?.away || m.predictions?.awayWinRate || 'N/A',
+                    willShowCrown: ((m.ia?.home || m.predictions?.homeWinRate || 0) > 70) || ((m.ia?.away || m.predictions?.awayWinRate || 0) > 70)
+                });
+            });
+            
             const totalDuration = Date.now() - methodStartTime;
             console.log("[getMatchs] Total method duration:", totalDuration + "ms");
+            console.log("[getMatchs] ✅ Ready to return matches with crown data calculated!");
             
             if (!res.headersSent) {
                 return res.json(allMatches);

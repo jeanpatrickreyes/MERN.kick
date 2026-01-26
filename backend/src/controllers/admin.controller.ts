@@ -1,9 +1,9 @@
 import { Request, Response } from "express";
-import { auth, db } from "../firebase/firebase";
-import { addDoc, collection, deleteDoc, doc, getCountFromServer, getDoc, getDocs, orderBy, query, setDoc, updateDoc, where } from "firebase/firestore";
+import { db } from "../firebase/firebase";
+import { addDoc, collection, deleteDoc, doc, getCountFromServer, getDoc, getDocs, orderBy, query, setDoc, updateDoc, where } from "../database/db";
 import Tables from "../ultis/tables.ultis";
 import bcrypt from "bcrypt";
-import { createUserWithEmailAndPassword } from "firebase/auth";
+import { v4 as uuidv4 } from "uuid";
 
 class AdminController {
 
@@ -67,8 +67,8 @@ class AdminController {
             const saltRounds = 10;
             const hashedPassword = await bcrypt.hash(password, saltRounds);
 
-            const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-            const uid = userCredential.user.uid;
+            // Generate unique ID for user
+            const uid = uuidv4();
 
             const newMember = {
                 admin_id: user.id,
@@ -215,8 +215,8 @@ class AdminController {
             const saltRounds = 10;
             const hashedPassword = await bcrypt.hash(password, saltRounds);
 
-            const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-            const uid = userCredential.user.uid;
+            // Generate unique ID for admin
+            const uid = uuidv4();
 
             const newAdmin = {
                 admin_id: user.id,

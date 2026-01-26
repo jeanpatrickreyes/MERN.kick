@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { db } from "../firebase/firebase";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc } from "../database/db";
 import Tables from "../ultis/tables.ultis";
 
 class ConfigController {
@@ -11,7 +11,17 @@ class ConfigController {
             const configSnap = await getDoc(configRef);
 
             if (!configSnap.exists()) {
-                return res.status(404).json({ error: "Config not found." });
+                // Return default config if not found
+                const defaultConfig = {
+                    instagram: '',
+                    threads: '',
+                    telegram: '',
+                    whatsapp: 'https://wa.me/85266750460',
+                    message: ''
+                };
+                // Create the default config in database
+                await setDoc(configRef, defaultConfig);
+                return res.status(200).json(defaultConfig);
             }
 
             return res.status(200).json(configSnap.data());
@@ -40,8 +50,8 @@ class ConfigController {
             return res.status(200).json({ success: true, message: "Config updated." });
         } catch (err) {
             console.error(err);
-            res.status(500).json({ error: "Error " });
-        } return res.status(500).json({ error: "Erro " });
+            return res.status(500).json({ error: "Error updating config." });
+        }
     }
 }
 

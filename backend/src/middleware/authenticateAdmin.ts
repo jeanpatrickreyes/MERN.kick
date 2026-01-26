@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc } from "../database/db";
 import { db } from "../firebase/firebase";
 import { SessionService } from "../service/sessionService";
 import Tables from "../ultis/tables.ultis";

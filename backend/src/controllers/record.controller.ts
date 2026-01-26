@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { db } from "../firebase/firebase";
-import { addDoc, collection, deleteDoc, doc, getCountFromServer, getDoc, getDocs, orderBy, query, updateDoc, } from "firebase/firestore";
+import { addDoc, collection, deleteDoc, doc, getCountFromServer, getDoc, getDocs, orderBy, query, updateDoc, } from "../database/db";
 import Tables from "../ultis/tables.ultis";
 import path from "path";
 import fs from "fs";
