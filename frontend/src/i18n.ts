@@ -14,15 +14,25 @@ i18n
             en: { translation: en },
             zhCN: { translation: zhCN }
         },
+        lng: "zhCN", // Set default language to Simplified Chinese
         fallbackLng: {
             "zhCN": ["zhCN"],
             "zh-SG": ["zhCN"],
             "zh-TW": ["zh"],
             "zh-HK": ["zh"],
             "zh-MO": ["zh"],
-            default: ["zh"],
+            default: ["zhCN"], // Change default fallback to Simplified Chinese
         },
         supportedLngs: ["zh", "zhCN", "en"],
+        detection: {
+            // Only detect language if not already set in localStorage
+            lookupLocalStorage: "i18nextLng",
+            caches: ["localStorage"],
+            // Don't auto-detect on first load, use default instead
+            order: ["localStorage", "navigator"],
+            // If no language is stored, use the default (zhCN)
+            checkWhitelist: true,
+        },
         interpolation: {
             escapeValue: false,
         },
