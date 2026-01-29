@@ -40,12 +40,29 @@ class UsersController {
                 const allMembersRef = collection(db, Tables.members);
                 const allMembersSnapshot = await getDocs(allMembersRef);
                 
-                const adminMatch = allAdminsSnapshot.docs.find(doc => 
-                    doc.data().email?.toLowerCase() === normalizedEmail
-                );
-                const memberMatch = allMembersSnapshot.docs.find(doc => 
-                    doc.data().email?.toLowerCase() === normalizedEmail
-                );
+                console.log("[Login] Total admins in DB:", allAdminsSnapshot.docs.length);
+                console.log("[Login] Total members in DB:", allMembersSnapshot.docs.length);
+                
+                // Log all emails for debugging
+                allAdminsSnapshot.docs.forEach((doc, idx) => {
+                    const email = doc.data().email;
+                    console.log(`[Login] Admin ${idx} email: "${email}" (normalized: "${email?.toLowerCase().trim()}")`);
+                });
+                
+                const adminMatch = allAdminsSnapshot.docs.find(doc => {
+                    const docEmail = doc.data().email;
+                    if (!docEmail) return false;
+                    const match = docEmail.toLowerCase().trim() === normalizedEmail;
+                    if (match) console.log(`[Login] Found admin match: "${docEmail}"`);
+                    return match;
+                });
+                const memberMatch = allMembersSnapshot.docs.find(doc => {
+                    const docEmail = doc.data().email;
+                    if (!docEmail) return false;
+                    const match = docEmail.toLowerCase().trim() === normalizedEmail;
+                    if (match) console.log(`[Login] Found member match: "${docEmail}"`);
+                    return match;
+                });
                 
                 if (!adminMatch && !memberMatch) {
                     console.log("[Login] User not found even with case-insensitive search");
