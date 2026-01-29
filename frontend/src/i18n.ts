@@ -28,10 +28,8 @@ i18n
             // Only detect language if not already set in localStorage
             lookupLocalStorage: "i18nextLng",
             caches: ["localStorage"],
-            // Don't auto-detect on first load, use default instead
-            order: ["localStorage", "navigator"],
-            // If no language is stored, use the default (zhCN)
-            checkWhitelist: true,
+            // Check localStorage first, then use default if not found
+            order: ["localStorage"],
         },
         interpolation: {
             escapeValue: false,
