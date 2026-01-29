@@ -189,6 +189,10 @@ class Query {
                     
                     switch (operator) {
                         case '==':
+                            // For email fields, do case-insensitive comparison
+                            if (field === 'email' && typeof fieldValue === 'string' && typeof value === 'string') {
+                                return fieldValue.toLowerCase().trim() === value.toLowerCase().trim();
+                            }
                             return fieldValue === value;
                         case '!=':
                             return fieldValue !== value;

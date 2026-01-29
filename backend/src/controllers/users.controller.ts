@@ -17,16 +17,90 @@ class UsersController {
         }
         try {
             let userId: string;
+            // Normalize email to lowercase for comparison
+            const normalizedEmail = email.toLowerCase().trim();
+            
+            console.log("[Login] Searching for email:", normalizedEmail);
+            
             const membersRefAdmin = collection(db, Tables.admins);
-            const qAdmin = query(membersRefAdmin, where("email", "==", email));
+            const qAdmin = query(membersRefAdmin, where("email", "==", normalizedEmail));
             const querySnapshotAdmin = await getDocs(qAdmin);
+            console.log("[Login] Admin query results:", querySnapshotAdmin.empty ? "empty" : `${querySnapshotAdmin.docs.length} found`);
 
             const membersRef = collection(db, Tables.members);
-            const q = query(membersRef, where("email", "==", email));
+            const q = query(membersRef, where("email", "==", normalizedEmail));
             const querySnapshot = await getDocs(q);
+            console.log("[Login] Member query results:", querySnapshot.empty ? "empty" : `${querySnapshot.docs.length} found`);
 
             if (querySnapshot.empty && querySnapshotAdmin.empty) {
-                return res.status(404).json({ error: "User not found." });
+                // Try case-insensitive search as fallback
+                console.log("[Login] No exact match found, trying case-insensitive search...");
+                const allAdminsRef = collection(db, Tables.admins);
+                const allAdminsSnapshot = await getDocs(allAdminsRef);
+                const allMembersRef = collection(db, Tables.members);
+                const allMembersSnapshot = await getDocs(allMembersRef);
+                
+                const adminMatch = allAdminsSnapshot.docs.find(doc => 
+                    doc.data().email?.toLowerCase() === normalizedEmail
+                );
+                const memberMatch = allMembersSnapshot.docs.find(doc => 
+                    doc.data().email?.toLowerCase() === normalizedEmail
+                );
+                
+                if (!adminMatch && !memberMatch) {
+                    console.log("[Login] User not found even with case-insensitive search");
+                    return res.status(404).json({ error: "User not found." });
+                }
+                
+                // Use the found match
+                if (adminMatch) {
+                    const doc = adminMatch;
+                    const userData = doc.data();
+                    userId = doc.id;
+                    // Continue with password verification below
+                    const passwordMatch = await bcrypt.compare(password, userData.password);
+                    if (!passwordMatch) {
+                        return res.status(401).json({ error: "Invalid password." });
+                    }
+                    const sessionId = await SessionService.createSession(userId);
+                    res.cookie('sessionId', sessionId, {
+                        httpOnly: true,
+                        secure: process.env.NODE_ENV === 'production',
+                        sameSite: 'lax',
+                        maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
+                    });
+                    return res.json({
+                        user: {
+                            id: userId,
+                            email: userData.email,
+                            role: userData.role || 'admin'
+                        },
+                        sessionId
+                    });
+                } else {
+                    const doc = memberMatch!;
+                    const userData = doc.data();
+                    userId = doc.id;
+                    const passwordMatch = await bcrypt.compare(password, userData.password);
+                    if (!passwordMatch) {
+                        return res.status(401).json({ error: "Invalid password." });
+                    }
+                    const sessionId = await SessionService.createSession(userId);
+                    res.cookie('sessionId', sessionId, {
+                        httpOnly: true,
+                        secure: process.env.NODE_ENV === 'production',
+                        sameSite: 'lax',
+                        maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
+                    });
+                    return res.json({
+                        user: {
+                            id: userId,
+                            email: userData.email,
+                            role: 'member'
+                        },
+                        sessionId
+                    });
+                }
             }
             let userData: any = null;
             if (!querySnapshot.empty) {
@@ -34,14 +108,14 @@ class UsersController {
                 userData = doc.data();
                 userData.role = "member";
                 userId = doc.id;
-            } else {
+            } else if (!querySnapshotAdmin.empty) {
                 const doc = querySnapshotAdmin.docs[0];
                 userData = doc.data();
                 userId = doc.id;
             }
 
             // Verify password using bcrypt
-            if (!userData.password) {
+            if (!userData || !userData.password) {
                 return res.status(401).json({ error: "Invalid credentials." });
             }
             
