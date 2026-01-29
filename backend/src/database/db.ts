@@ -26,7 +26,7 @@ interface Database {
 }
 
 class LocalDatabase {
-    private db: Database;
+    private db: Database = {};
 
     constructor() {
         this.load();
@@ -80,11 +80,14 @@ class CollectionReference {
 }
 
 class DocumentReference {
+    public readonly id: string;
     constructor(
-        private id: string,
+        id: string,
         private data: { [id: string]: any },
         private onUpdate: () => void
-    ) {}
+    ) {
+        this.id = id;
+    }
 
     async get(): Promise<DocumentSnapshot> {
         const data = this.data[this.id];
