@@ -10,9 +10,10 @@ let DB_FILE: string;
 
 if (isProduction || __dirname.includes('dist')) {
     // When running from dist/, go up to backend root, then to data/
-    // __dirname will be something like: /root/kick/backend/dist/src/database
+    // __dirname will be something like: /root/kick/backend/dist/database (after compilation)
     // We want: /root/kick/backend/data/database.json
-    const backendRoot = path.resolve(__dirname, '../../..');
+    // Go up 2 levels from dist/database to get to backend/
+    const backendRoot = path.resolve(__dirname, '../..');
     DB_DIR = path.join(backendRoot, 'data');
     DB_FILE = path.join(DB_DIR, 'database.json');
 } else {
