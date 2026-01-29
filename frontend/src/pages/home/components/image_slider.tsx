@@ -107,6 +107,7 @@ export default function ImageSlider() {
                                     transition: 'all 0.7s cubic-bezier(0.4, 0, 0.2, 1)',
                                     objectFit: 'contain',
                                 }}
+                                loading={position === 0 || (isMobile && item.isActive) ? "eager" : "lazy"}
                                 onError={(e) => {
                                     console.error(`Failed to load slider image: ${item.image}`);
                                     e.currentTarget.style.display = 'none';

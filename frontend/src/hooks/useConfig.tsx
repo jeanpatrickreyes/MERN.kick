@@ -11,5 +11,7 @@ export const useConfig = (): UseQueryResult<Config, Error> => {
             if (res.status === 200 && res.data) return res.data;
             throw new Error("Failed to fetch admins");
         },
+        staleTime: 5 * 60 * 1000, // Config doesn't change often, cache for 5 minutes
+        refetchOnMount: false, // Don't refetch on mount if data exists
     });
 };

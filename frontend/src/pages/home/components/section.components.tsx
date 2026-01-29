@@ -64,6 +64,8 @@ export default function SectionComponent1({
                             <img
                                 src={AppGlobal.baseURL.replace("/api/", "") + item?.media[0]}
                                 className="w-full h-full object-cover"
+                                loading="lazy"
+                                decoding="async"
                             />
                         </div>
 

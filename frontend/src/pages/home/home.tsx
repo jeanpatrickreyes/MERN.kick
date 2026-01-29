@@ -115,17 +115,21 @@ export default function HomePage() {
         setUrlInput("");
     };
 
-    return (isLoading || isLoadingRecords
-        ?
-        <Loading />
-        :
-        <div className="h-screen w-screen overflow-x-hidden bg-black">
+    // Show content progressively instead of blocking on all data
+    // Only show loading for critical above-the-fold content
+    const showLoading = isLoading && !data;
 
+    return (
+        <div className="h-screen w-screen overflow-x-hidden bg-black">
             <AppBarComponent />
 
-            <HeroCarousel match={data ?? []} data={!isError ? records.data ?? [] : []} />
+            {showLoading ? (
+                <Loading />
+            ) : (
+                <>
+                    <HeroCarousel match={data ?? []} data={!isError ? records.data ?? [] : []} />
 
-            <SectionComponent2 />
+                    <SectionComponent2 />
 
             {
                 //         <SectionComponent3 />
@@ -137,8 +141,9 @@ export default function HomePage() {
 
             <SectionComponent7 config={config} />
 
-            <SectionComponent8 />
-
+                    <SectionComponent8 />
+                </>
+            )}
 
             {currentLang.code === "zhCN" ? (
                 // For Simplified Chinese: Show whatsapp-black.jpg image

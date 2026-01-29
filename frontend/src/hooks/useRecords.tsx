@@ -13,5 +13,7 @@ export const useRecords = (
             if (res.status === 200 && res.data) return res.data;
             throw new Error("Failed to fetch members");
         },
+        staleTime: 2 * 60 * 1000, // Cache records for 2 minutes
+        refetchOnMount: false, // Don't block initial render
     });
 };
