@@ -39,7 +39,7 @@ const languages = [
 export default function HomePage() {
     const isMobile = useIsMobile();
     const { data, isLoading } = useMatchs();
-    const { data: records, isError, isLoading: isLoadingRecords } = useRecords(1, isMobile ? 4 : 6);
+    const { data: records, isError } = useRecords(1, isMobile ? 4 : 6);
     const { data: config } = useConfig();
     const { t } = useTranslation();
     const { userRole } = useAuthStore();
