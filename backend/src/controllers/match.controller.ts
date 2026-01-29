@@ -757,15 +757,23 @@ class MatchController {
             let matchesWithIA = 0;
             
             const calculationPromises = allMatches.map(async (match) => {
-                // Skip if match already has predictions and IA
-                if (match.predictions && match.ia && match.ia.home && match.ia.away) {
+                // Always recalculate predictions and IA to ensure fresh data for crowns
+                // This ensures crowns show up correctly in match lists
+                const matchId = match.eventId;
+                
+                // Check if we need to recalculate (missing or incomplete data)
+                const hasCompletePredictions = match.predictions && match.predictions.homeWinRate && match.predictions.awayWinRate;
+                const hasCompleteIA = match.ia && match.ia.home && match.ia.away;
+                
+                // If we have complete data, we can skip, but log it
+                if (hasCompletePredictions && hasCompleteIA) {
                     matchesWithPredictions++;
                     matchesWithIA++;
+                    console.log("[getMatchs] Match", matchId, "already has complete predictions and IA");
                     return match;
                 }
                 
                 matchesNeedingCalc++;
-                const matchId = match.eventId;
                 
                 // Need fixture_id for predictions
                 let fixture_id = match.fixture_id;
@@ -962,6 +970,31 @@ class MatchController {
             // Final verification - ensure predictions/IA are in the response
             const matchesWithData = allMatches.filter(m => m.predictions || (m.ia && m.ia.home && m.ia.away));
             console.log("[getMatchs] Final check - Matches with predictions or IA in response:", matchesWithData.length, "out of", allMatches.length);
+            
+            // Log matches that will show crowns (win rate > 70%)
+            const matchesWithCrownsInResponse = allMatches.filter(m => {
+                const homeWin = m.ia?.home ?? m.predictions?.homeWinRate ?? 0;
+                const awayWin = m.ia?.away ?? m.predictions?.awayWinRate ?? 0;
+                const higherWinRate = Math.max(homeWin, awayWin);
+                return higherWinRate > 70;
+            });
+            console.log("[getMatchs] Matches that will show crowns (win rate > 70%):", matchesWithCrownsInResponse.length);
+            if (matchesWithCrownsInResponse.length > 0) {
+                console.log("[getMatchs] Sample matches with crowns:", matchesWithCrownsInResponse.slice(0, 5).map(m => {
+                    const homeWin = m.ia?.home ?? m.predictions?.homeWinRate ?? 0;
+                    const awayWin = m.ia?.away ?? m.predictions?.awayWinRate ?? 0;
+                    return {
+                        id: m.eventId,
+                        home: m.homeTeamName,
+                        away: m.awayTeamName,
+                        homeWin: homeWin.toFixed(1) + '%',
+                        awayWin: awayWin.toFixed(1) + '%',
+                        higherWinRate: Math.max(homeWin, awayWin).toFixed(1) + '%',
+                        hasIA: !!m.ia,
+                        hasPredictions: !!m.predictions
+                    };
+                }));
+            }
             
             // Log date distribution in allMatches BEFORE filtering
             console.log("[getMatchs] ========================================");
