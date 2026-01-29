@@ -22,6 +22,11 @@ export default function Crown({ winRate, className = "", size = "w-5" }: CrownPr
                     src={AppAssets.crown}
                     alt="crown"
                     className={size}
+                    onError={(e) => {
+                        console.error(`[Crown] Failed to load crown image: ${AppAssets.crown}`);
+                        // Fallback to a data URI or hide the image
+                        e.currentTarget.style.display = 'none';
+                    }}
                 />
             ))}
         </div>

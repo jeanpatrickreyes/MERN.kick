@@ -70,7 +70,9 @@ app.use(express.json());
 
 // Static files with proper cache control
 // Hashed files (JS, CSS) can be cached for 1 year, index.html should not be cached
-app.use(express.static(path.join(__dirname, "../../frontend/dist"), {
+const frontendDistPath = path.join(__dirname, "../../frontend/dist");
+console.log(`[SERVER] Serving static files from: ${frontendDistPath}`);
+app.use(express.static(frontendDistPath, {
     maxAge: '1y',
     etag: true,
     lastModified: true,
