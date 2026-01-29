@@ -2,12 +2,28 @@ import fs from 'fs';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 
-// Database file location - relative to backend directory
-// In development: backend/data/database.json
-// In production: backend/data/database.json
-// Use process.cwd() which will be the backend directory when server runs
-const DB_DIR = path.join(process.cwd(), 'data');
-const DB_FILE = path.join(DB_DIR, 'database.json');
+// Database file location - always use the source data directory, not dist
+// This ensures the database file is shared between development and production
+const isProduction = process.env.NODE_ENV === 'production';
+let DB_DIR: string;
+let DB_FILE: string;
+
+if (isProduction || __dirname.includes('dist')) {
+    // When running from dist/, go up to backend root, then to data/
+    // __dirname will be something like: /root/kick/backend/dist/src/database
+    // We want: /root/kick/backend/data/database.json
+    const backendRoot = path.resolve(__dirname, '../../..');
+    DB_DIR = path.join(backendRoot, 'data');
+    DB_FILE = path.join(DB_DIR, 'database.json');
+} else {
+    // Development: use process.cwd() which is the backend directory
+    DB_DIR = path.join(process.cwd(), 'data');
+    DB_FILE = path.join(DB_DIR, 'database.json');
+}
+
+console.log(`[DB] Database file path: ${DB_FILE}`);
+console.log(`[DB] __dirname: ${__dirname}`);
+console.log(`[DB] process.cwd(): ${process.cwd()}`);
 
 // Ensure data directory exists
 if (!fs.existsSync(DB_DIR)) {
