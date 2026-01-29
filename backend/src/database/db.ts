@@ -36,7 +36,16 @@ class LocalDatabase {
         try {
             const data = fs.readFileSync(DB_FILE, 'utf-8');
             this.db = JSON.parse(data);
+            console.log(`[DB] Database loaded from ${DB_FILE}`);
+            console.log(`[DB] Collections found:`, Object.keys(this.db));
+            Object.keys(this.db).forEach(collectionName => {
+                const collection = this.db[collectionName];
+                if (typeof collection === 'object' && collection !== null) {
+                    console.log(`[DB] Collection "${collectionName}" has ${Object.keys(collection).length} documents`);
+                }
+            });
         } catch (error) {
+            console.error(`[DB] Error loading database from ${DB_FILE}:`, error);
             this.db = {};
         }
     }
@@ -47,8 +56,13 @@ class LocalDatabase {
 
     // Collection operations
     collection(name: string): CollectionReference {
+        console.log(`[DB] collection() called for: ${name}`);
+        console.log(`[DB] Current db keys:`, Object.keys(this.db));
         if (!this.db[name]) {
+            console.log(`[DB] Collection ${name} doesn't exist, creating empty collection`);
             this.db[name] = {};
+        } else {
+            console.log(`[DB] Collection ${name} exists with ${Object.keys(this.db[name]).length} documents`);
         }
         return new CollectionReference(name, this.db[name], () => this.save());
     }
@@ -68,9 +82,13 @@ class CollectionReference {
 
     async getDocs(): Promise<QuerySnapshot> {
         const docs: QueryDocumentSnapshot[] = [];
+        console.log(`[DB] getDocs called for collection: ${this.name}`);
+        console.log(`[DB] Collection data keys:`, Object.keys(this.data));
+        console.log(`[DB] Collection data entries count:`, Object.entries(this.data).length);
         for (const [id, data] of Object.entries(this.data)) {
             docs.push(new QueryDocumentSnapshot(id, data));
         }
+        console.log(`[DB] Returning ${docs.length} documents for collection ${this.name}`);
         return new QuerySnapshot(docs);
     }
 
