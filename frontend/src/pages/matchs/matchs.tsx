@@ -27,7 +27,12 @@ function MatchsPage() {
     useEffect(() => {
         if (!data) return;
         const allMatches: Match[] = data;
+        console.log('[MatchsPage] Total matches received:', allMatches.length);
+        // Log unique dates found
+        const uniqueDates = [...new Set(allMatches.map(m => m.kickOff?.split(' ')[0]).filter(Boolean))];
+        console.log('[MatchsPage] Unique dates in matches:', uniqueDates);
         const dates = getDates(allMatches);
+        console.log('[MatchsPage] Formatted dates for display:', dates);
         setDays(dates);
     }, [data]);
 
@@ -40,32 +45,97 @@ function MatchsPage() {
     }, [data, selectedDay]);
 
     function getMatch(matches: Match[]) {
-        const allMatch: Match[] = matches.map((m) => {
-            const dateStr = m.kickOff.split(' ')[0];
-            const [_, month, day] = dateStr.split('-');
-            const formatted = `${day}/${month}`;
-            // Always set matchDateFormated for all matches
-            m.matchDateFormated = formatted;
-            return m;
-        });
+        // Like 111 project: backend already filters past matches, so we just format dates
+        // No additional filtering needed on frontend
+        const allMatch: Match[] = matches
+            .filter((m) => {
+                // Only filter out matches with invalid kickOff dates
+                if (!m.kickOff) return false;
+                try {
+                    // Handle both "YYYY-MM-DD HH:mm" and ISO format "YYYY-MM-DDTHH:mm:ss..."
+                    let kickOffMoment: moment.Moment;
+                    if (m.kickOff.includes('T')) {
+                        // ISO format: "2026-01-30T00:00:00.000+08:00"
+                        kickOffMoment = moment(m.kickOff);
+                    } else {
+                        // Format: "2026-01-30 01:30"
+                        kickOffMoment = moment(m.kickOff, 'YYYY-MM-DD HH:mm');
+                    }
+                    
+                    if (!kickOffMoment.isValid()) {
+                        console.warn('Invalid kickOff date:', m.kickOff);
+                        return false;
+                    }
+                    return true;
+                } catch (error) {
+                    console.warn('Error parsing kickOff date:', m.kickOff, error);
+                    return false;
+                }
+            })
+            .map((m) => {
+                // Extract date part - handle both formats
+                let dateStr: string;
+                if (m.kickOff.includes('T')) {
+                    // ISO format: "2026-01-30T00:00:00.000+08:00" -> "2026-01-30"
+                    dateStr = m.kickOff.split('T')[0];
+                } else {
+                    // Format: "2026-01-30 01:30" -> "2026-01-30"
+                    dateStr = m.kickOff.split(' ')[0];
+                }
+                
+                const [_, month, day] = dateStr.split('-');
+                const formatted = `${day}/${month}`;
+                // Always set matchDateFormated for all matches
+                m.matchDateFormated = formatted;
+                return m;
+            });
         setMatchs(allMatch);
     }
 
 
     function getDates(match: Match[]) {
+        if (!match || match.length === 0) {
+            console.log('[MatchsPage] getDates: No matches provided');
+            return [];
+        }
+        
         const datasOrden = match
-            .map(item => item.kickOff.split(' ')[0])
-            .filter(Boolean)
-            .sort((a, b) => b.localeCompare(a));
+            .map(item => {
+                if (!item.kickOff) return null;
+                // Handle both "YYYY-MM-DD HH:mm" and ISO format "YYYY-MM-DDTHH:mm:ss..."
+                if (item.kickOff.includes('T')) {
+                    // ISO format: "2026-01-30T00:00:00.000+08:00" -> "2026-01-30"
+                    return item.kickOff.split('T')[0];
+                } else {
+                    // Format: "2026-01-30 01:30" -> "2026-01-30"
+                    return item.kickOff.split(' ')[0];
+                }
+            })
+            .filter((date): date is string => date !== null && date !== undefined)
+            .sort((a, b) => {
+                // Sort dates in ascending order (oldest first)
+                return a.localeCompare(b);
+            });
+        
+        console.log('[MatchsPage] getDates: Raw dates extracted:', datasOrden);
+        
         const datasUnicas: string[] = [];
         for (const dataStr of datasOrden) {
-            const [_, mes, dia] = dataStr.split('-');
+            const parts = dataStr.split('-');
+            if (parts.length !== 3) {
+                console.warn('[MatchsPage] getDates: Invalid date format:', dataStr);
+                continue;
+            }
+            const [, mes, dia] = parts; // year not needed for display
             const formatada = `${dia}/${mes}`;
             if (!datasUnicas.includes(formatada)) {
                 datasUnicas.push(formatada);
             }
         }
-        return datasUnicas.reverse();
+        
+        console.log('[MatchsPage] getDates: Formatted unique dates:', datasUnicas);
+        // Return dates in ascending order (earliest first)
+        return datasUnicas;
     }
 
     return (
@@ -156,27 +226,38 @@ function MatchsPage() {
                             ? <div style={{ marginTop: 20 }}>
                                 {matchs
                                     .filter((x) => x.matchDateFormated === selectedDay)
-                                    .sort((a, b) =>
-                                        moment(a.kickOff, 'YYYY-MM-DD HH:mm').valueOf() -
-                                        moment(b.kickOff, 'YYYY-MM-DD HH:mm').valueOf()
-                                    )
-                                    .map((m) => (
-                                        <div className="mb-2 sm:w-2/3 w-5/6 mx-auto">
-                                            <CardMatch
-
-                                                widht={"100%"}
-
-                                                key={m.id}
-                                                id={m.id}
-                                                navigate={navigate}
-                                                match={m}
-                                                teams={[getTeamNameInCurrentLanguage(m.homeLanguages, m.homeTeamName), getTeamNameInCurrentLanguage(m.awayLanguages, m.awayTeamName)]}
-                                            />
-                                        </div>
-                                    ))}
+                                    .sort((a, b) => {
+                                        // Handle both "YYYY-MM-DD HH:mm" and ISO format
+                                        const momentA = a.kickOff.includes('T') 
+                                            ? moment(a.kickOff) 
+                                            : moment(a.kickOff, 'YYYY-MM-DD HH:mm');
+                                        const momentB = b.kickOff.includes('T') 
+                                            ? moment(b.kickOff) 
+                                            : moment(b.kickOff, 'YYYY-MM-DD HH:mm');
+                                        return momentA.valueOf() - momentB.valueOf();
+                                    })
+                                    .map((m) => {
+                                        const matchId = m.id || (m as any).eventId;
+                                        if (!matchId) {
+                                            console.warn('Match missing id:', m);
+                                            return null;
+                                        }
+                                        return (
+                                            <div key={matchId} className="mb-2 sm:w-2/3 w-5/6 mx-auto">
+                                                <CardMatch
+                                                    widht={"100%"}
+                                                    id={matchId}
+                                                    navigate={navigate}
+                                                    match={m}
+                                                    teams={[getTeamNameInCurrentLanguage(m.homeLanguages, m.homeTeamName), getTeamNameInCurrentLanguage(m.awayLanguages, m.awayTeamName)]}
+                                                />
+                                            </div>
+                                        );
+                                    })
+                                    .filter(Boolean)}
                             </div>
                             : days.map((d) => {
-                                return <div>
+                                return <div key={d}>
                                     <div className="sm:w-2/3 w-5/6 mx-auto items-start flex mb-6 mt-8">
 
                                         <div className="flex items-start w-screen">
@@ -192,25 +273,35 @@ function MatchsPage() {
 
                                     {matchs
                                         .filter((x) => x.matchDateFormated === d)
-                                        .sort((a, b) =>
-                                            moment(a.kickOff, 'YYYY-MM-DD HH:mm').valueOf() -
-                                            moment(b.kickOff, 'YYYY-MM-DD HH:mm').valueOf()
-                                        )
-                                        .map((m) => (
-                                            <div className="mb-2 sm:w-2/3 w-5/6 mx-auto">
-                                                <CardMatch
-
-                                                    widht={"100%"}
-
-                                                    id={m.id}
-                                                    key={m.id}
-                                                    navigate={navigate}
-                                                    match={m}
-                                                    teams={[getTeamNameInCurrentLanguage(m.homeLanguages, m.homeTeamName), getTeamNameInCurrentLanguage(m.awayLanguages, m.awayTeamName)]}
-                                                />
-                                            </div>
-
-                                        ))}
+                                        .sort((a, b) => {
+                                            // Handle both "YYYY-MM-DD HH:mm" and ISO format
+                                            const momentA = a.kickOff.includes('T') 
+                                                ? moment(a.kickOff) 
+                                                : moment(a.kickOff, 'YYYY-MM-DD HH:mm');
+                                            const momentB = b.kickOff.includes('T') 
+                                                ? moment(b.kickOff) 
+                                                : moment(b.kickOff, 'YYYY-MM-DD HH:mm');
+                                            return momentA.valueOf() - momentB.valueOf();
+                                        })
+                                        .map((m) => {
+                                            const matchId = m.id || (m as any).eventId;
+                                            if (!matchId) {
+                                                console.warn('Match missing id:', m);
+                                                return null;
+                                            }
+                                            return (
+                                                <div key={matchId} className="mb-2 sm:w-2/3 w-5/6 mx-auto">
+                                                    <CardMatch
+                                                        widht={"100%"}
+                                                        id={matchId}
+                                                        navigate={navigate}
+                                                        match={m}
+                                                        teams={[getTeamNameInCurrentLanguage(m.homeLanguages, m.homeTeamName), getTeamNameInCurrentLanguage(m.awayLanguages, m.awayTeamName)]}
+                                                    />
+                                                </div>
+                                            );
+                                        })
+                                        .filter(Boolean)}
 
 
                                 </div>

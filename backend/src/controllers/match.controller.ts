@@ -277,12 +277,60 @@ class MatchController {
             console.log("========================================");
             
             // Always fetch from HKJC API to check for updates and cleanup old matches
+            console.log("[getMatchs] ========================================");
             console.log("[getMatchs] Fetching from HKJC API...");
             const hkjcStartTime = Date.now();
             const hkjc: HKJC[] = await ApiHKJC();
             const hkjcDuration = Date.now() - hkjcStartTime;
             console.log("[getMatchs] HKJC API returned", hkjc.length, "matches in", hkjcDuration + "ms");
-            console.log("[getMatchs] HKJC matches sample:", hkjc.slice(0, 2).map(m => ({ id: m.id, home: m.homeTeam?.name_en, away: m.awayTeam?.name_en })));
+            
+            // Log detailed date information from HKJC API
+            if (hkjc.length > 0) {
+                const hkjcDates = hkjc.map(m => {
+                    if (!m.matchDate) return null;
+                    return m.matchDate.split('+')[0].split('T')[0];
+                }).filter((date): date is string => date !== null);
+                
+                const uniqueDates = [...new Set(hkjcDates)].sort();
+                console.log("[getMatchs] ========================================");
+                console.log("[getMatchs] HKJC API DATE ANALYSIS:");
+                console.log("[getMatchs] Total unique dates:", uniqueDates.length);
+                console.log("[getMatchs] Date range:", uniqueDates[0], "to", uniqueDates[uniqueDates.length - 1]);
+                console.log("[getMatchs] All unique dates:", uniqueDates);
+                
+                // Show distribution of matches per date
+                const dateDistribution = uniqueDates.map(date => ({
+                    date,
+                    count: hkjc.filter(m => {
+                        const matchDate = m.matchDate?.split('+')[0].split('T')[0];
+                        return matchDate === date;
+                    }).length
+                }));
+                console.log("[getMatchs] Matches per date:", dateDistribution);
+                console.log("[getMatchs] ========================================");
+            }
+            
+            console.log("[getMatchs] HKJC matches sample:", hkjc.slice(0, 2).map(m => ({ 
+                id: m.id, 
+                home: m.homeTeam?.name_en, 
+                away: m.awayTeam?.name_en,
+                matchDate: m.matchDate,
+                kickOffTime: m.kickOffTime
+            })));
+            
+            // Log dates from HKJC API to see what dates are available
+            const hkjcDates = [...new Set(hkjc.map(m => {
+                if (!m.matchDate) return null;
+                return m.matchDate.split('+')[0].split('T')[0];
+            }).filter(Boolean))].sort();
+            console.log("[getMatchs] Dates in HKJC API response:", hkjcDates);
+            console.log("[getMatchs] HKJC API date distribution:", hkjcDates.map(date => ({
+                date,
+                count: hkjc.filter(m => {
+                    const matchDate = m.matchDate?.split('+')[0].split('T')[0];
+                    return matchDate === date;
+                }).length
+            })));
             
             if (hkjc.length === 0) {
                 console.log("[getMatchs] No matches from HKJC API");
@@ -300,14 +348,97 @@ class MatchController {
                     };
                 });
                 
+                // Log ALL database matches (including past ones) to see what's stored
+                console.log("[getMatchs] ========================================");
+                console.log("[getMatchs] ALL DATABASE MATCHES (INCLUDING PAST):");
+                console.log("[getMatchs] Total matches in database:", dbMatches.length);
                 if (dbMatches.length > 0) {
+                    const allDbDates = [...new Set(dbMatches.map((m: any) => {
+                        if (!m.kickOff) return null;
+                        const datePart = m.kickOff.split(' ')[0].split('T')[0];
+                        return datePart;
+                    }).filter(Boolean))].sort();
+                    console.log("[getMatchs] Total unique dates in database (all matches):", allDbDates.length);
+                    if (allDbDates.length > 0) {
+                        console.log("[getMatchs] Date range in database:", allDbDates[0], "to", allDbDates[allDbDates.length - 1]);
+                        console.log("[getMatchs] All dates in database:", allDbDates);
+                        console.log("[getMatchs] Matches per date (all matches):", allDbDates.map(date => ({
+                            date,
+                            count: dbMatches.filter((m: any) => {
+                                if (!m.kickOff) return false;
+                                const datePart = m.kickOff.split(' ')[0].split('T')[0];
+                                return datePart === date;
+                            }).length
+                        })));
+                    }
+                }
+                console.log("[getMatchs] ========================================");
+                
+                if (dbMatches.length > 0) {
+                    // Log database matches analysis
+                    console.log("[getMatchs] ========================================");
+                    console.log("[getMatchs] DATABASE MATCHES ANALYSIS:");
+                    const dbDates = [...new Set(dbMatches.map((m: any) => {
+                        if (!m.kickOff) return null;
+                        const datePart = m.kickOff.split(' ')[0].split('T')[0];
+                        return datePart;
+                    }).filter(Boolean))].sort();
+                    console.log("[getMatchs] Total matches in database:", dbMatches.length);
+                    console.log("[getMatchs] Total unique dates in database:", dbDates.length);
+                    if (dbDates.length > 0) {
+                        console.log("[getMatchs] Date range in database:", dbDates[0], "to", dbDates[dbDates.length - 1]);
+                        console.log("[getMatchs] All dates in database:", dbDates);
+                        console.log("[getMatchs] Matches per date in database:", dbDates.map(date => ({
+                            date,
+                            count: dbMatches.filter((m: any) => {
+                                if (!m.kickOff) return false;
+                                const datePart = m.kickOff.split(' ')[0].split('T')[0];
+                                return datePart === date;
+                            }).length
+                        })));
+                    }
+                    console.log("[getMatchs] ========================================");
+                    
+                    // Filter out past matches (like 111 project - only show future matches)
+                    const now = new Date();
+                    // Subtract 1 hour to be less strict - show matches from today even if they're slightly in the past
+                    const cutoffTime = new Date(now.getTime() - 60 * 60 * 1000); // 1 hour ago
+                    const futureMatches = dbMatches.filter((match: any) => {
+                        if (!match.kickOff) return false;
+                        try {
+                            let kickOffTime: Date;
+                            if (match.kickOff.includes('T')) {
+                                kickOffTime = new Date(match.kickOff);
+                            } else {
+                                const normalized = match.kickOff.replace(' ', 'T');
+                                kickOffTime = new Date(normalized);
+                            }
+                            if (isNaN(kickOffTime.getTime())) {
+                                return false;
+                            }
+                            // Use cutoffTime (1 hour ago) instead of now to be less strict
+                            return kickOffTime >= cutoffTime;
+                        } catch (error) {
+                            return false;
+                        }
+                    });
+
+                    // Log future matches analysis
+                    const futureDates = [...new Set(futureMatches.map((m: any) => {
+                        if (!m.kickOff) return null;
+                        const datePart = m.kickOff.split(' ')[0].split('T')[0];
+                        return datePart;
+                    }).filter(Boolean))].sort();
+                    console.log("[getMatchs] Future matches after filtering:", futureMatches.length);
+                    console.log("[getMatchs] Future matches dates:", futureDates);
+
                     // Sort by kickOff date
-                    const sortedMatches = dbMatches.sort((a, b) => {
+                    const sortedMatches = futureMatches.sort((a, b) => {
                         const dateA = new Date(a.kickOff);
                         const dateB = new Date(b.kickOff);
                         return dateA.getTime() - dateB.getTime();
                     });
-                    console.log("[getMatchs] Returning", sortedMatches.length, "matches from database (HKJC API returned 0)");
+                    console.log("[getMatchs] Returning", sortedMatches.length, "matches from database (HKJC API returned 0, filtered to future matches only)");
                     console.log("[getMatchs] Sample database matches:", sortedMatches.slice(0, 2).map((m: any) => ({ id: m.id || m.eventId, home: m.homeTeamName || 'N/A', away: m.awayTeamName || 'N/A', kickOff: m.kickOff })));
                     if (!res.headersSent) {
                         return res.json(sortedMatches);
@@ -380,14 +511,34 @@ class MatchController {
                     console.log("[getMatchs] HKJC has newer matches (latest:", latestHkjcDate, "vs DB:", latestDbDate, "), fetching fresh data...");
                     // Continue to fetch fresh data below
                 } else {
+                    // Filter out past matches (like 111 project - only show future matches)
+                    const now = new Date();
+                    // Subtract 1 hour to be less strict - show matches from today even if they're slightly in the past
+                    const cutoffTime = new Date(now.getTime() - 60 * 60 * 1000); // 1 hour ago
+                    const futureMatches = dbMatchesArray.filter((match: any) => {
+                        if (!match.kickOff) return false;
+                        let kickOffTime: Date;
+                        if (match.kickOff.includes('T')) {
+                            kickOffTime = new Date(match.kickOff);
+                        } else {
+                            const normalized = match.kickOff.replace(' ', 'T');
+                            kickOffTime = new Date(normalized);
+                        }
+                        if (isNaN(kickOffTime.getTime())) {
+                            return false;
+                        }
+                        // Use cutoffTime (1 hour ago) instead of now to be less strict
+                        return kickOffTime >= cutoffTime;
+                    });
+
                     // Sort by kickOff date
-                    const sortedMatches = dbMatchesArray.sort((a, b) => {
+                    const sortedMatches = futureMatches.sort((a, b) => {
                         const dateA = new Date(a.kickOff);
                         const dateB = new Date(b.kickOff);
                         return dateA.getTime() - dateB.getTime();
                     });
 
-                    console.log("[getMatchs] Returning", sortedMatches.length, "matches from database");
+                    console.log("[getMatchs] Returning", sortedMatches.length, "matches from database (filtered to future matches only)");
                     console.log("[getMatchs] Sample matches:", sortedMatches.slice(0, 2).map((m: any) => ({ id: m.id || m.eventId, home: m.homeTeamName || 'N/A', away: m.awayTeamName || 'N/A', hasPredictions: !!m.predictions, hasIA: !!m.ia })));
                     if (!res.headersSent) {
                         return res.json(sortedMatches);
@@ -426,6 +577,8 @@ class MatchController {
             const allMatches: Match[] = [];
             const matchDetailsPromises: Promise<any>[] = [];
             
+            console.log("[getMatchs] Building matches from", hkjc.length, "HKJC matches");
+            
             // Create match objects from all HKJC matches
             for (const hkjcMatch of hkjc) {
                 // Check if this match already exists in database
@@ -437,15 +590,17 @@ class MatchController {
                 let matchDate = hkjcMatch.matchDate;
                 let kickOffTime = hkjcMatch.kickOffTime;
                 
-                // Extract just the date part (before any + or T)
-                matchDate = matchDate.split('+')[0].split('T')[0];
-                
-                // If kickOffTime is a full ISO datetime, extract just the time part
-                if (kickOffTime.includes('T')) {
-                    kickOffTime = kickOffTime.split('T')[1]?.split('+')[0]?.split('.')[0] || kickOffTime;
+                // If kickOffTime is already a full ISO datetime, use it directly (like 111 project)
+                let kickOff: string;
+                if (kickOffTime && (kickOffTime.includes('T') || kickOffTime.includes(' '))) {
+                    // kickOffTime is already a full datetime, use it directly
+                    kickOff = kickOffTime;
+                } else {
+                    // Construct from separate date and time
+                    // Extract just the date part (before any + or T)
+                    matchDate = matchDate.split('+')[0].split('T')[0];
+                    kickOff = `${matchDate} ${kickOffTime}`;
                 }
-                
-                const kickOff = `${matchDate} ${kickOffTime}`;
                 
                 // Extract date components for kickOffDate (format: MM/DD/YYYY)
                 const [year, month, day] = matchDate.split('-');
@@ -808,6 +963,31 @@ class MatchController {
             const matchesWithData = allMatches.filter(m => m.predictions || (m.ia && m.ia.home && m.ia.away));
             console.log("[getMatchs] Final check - Matches with predictions or IA in response:", matchesWithData.length, "out of", allMatches.length);
             
+            // Log date distribution in allMatches BEFORE filtering
+            console.log("[getMatchs] ========================================");
+            console.log("[getMatchs] ALLMATCHES DATE ANALYSIS (BEFORE FILTERING):");
+            const allMatchesDates = [...new Set(allMatches.map((m: any) => {
+                if (!m.kickOff) return null;
+                // Extract date part (handle both "YYYY-MM-DD HH:mm" and ISO format)
+                const datePart = m.kickOff.split(' ')[0].split('T')[0];
+                return datePart;
+            }).filter(Boolean))].sort();
+            console.log("[getMatchs] Total matches built:", allMatches.length);
+            console.log("[getMatchs] Total unique dates:", allMatchesDates.length);
+            if (allMatchesDates.length > 0) {
+                console.log("[getMatchs] Date range:", allMatchesDates[0], "to", allMatchesDates[allMatchesDates.length - 1]);
+                console.log("[getMatchs] All unique dates:", allMatchesDates);
+                console.log("[getMatchs] Matches per date:", allMatchesDates.map(date => ({
+                    date,
+                    count: allMatches.filter((m: any) => {
+                        if (!m.kickOff) return false;
+                        const datePart = m.kickOff.split(' ')[0].split('T')[0];
+                        return datePart === date;
+                    }).length
+                })));
+            }
+            console.log("[getMatchs] ========================================");
+            
             // Log detailed sample of what's being returned
             console.log("[getMatchs] Returning", allMatches.length, "matches from APIs");
             allMatches.slice(0, 3).forEach((m, idx) => {
@@ -823,12 +1003,91 @@ class MatchController {
                 });
             });
             
+            // Filter out past matches (like 111 project - only show future matches)
+            // Use >= instead of > to include matches happening right now (like 111 project)
+            const now = new Date();
+            // Subtract 1 hour to be less strict - show matches from today even if they're slightly in the past
+            // This ensures we show matches from the current day and future days
+            const cutoffTime = new Date(now.getTime() - 60 * 60 * 1000); // 1 hour ago
+            
+            // Log dates before filtering
+            const datesBeforeFilter = [...new Set(allMatches.map((m: any) => {
+                if (!m.kickOff) return null;
+                return m.kickOff.split(' ')[0].split('T')[0];
+            }).filter(Boolean))].sort();
+            console.log("[getMatchs] Dates in allMatches before filtering:", datesBeforeFilter);
+            console.log("[getMatchs] Current time:", now.toISOString());
+            console.log("[getMatchs] Cutoff time (1 hour ago):", cutoffTime.toISOString());
+            
+            const futureMatches = allMatches.filter((match: any) => {
+                if (!match.kickOff) return false;
+                try {
+                    // Parse the kickOff datetime string
+                    // Handle both "YYYY-MM-DD HH:mm" and ISO format
+                    let kickOffTime: Date;
+                    if (match.kickOff.includes('T')) {
+                        // ISO format: "2026-01-30T01:30:00+08:00" or "2026-01-30T01:30:00Z"
+                        kickOffTime = new Date(match.kickOff);
+                    } else {
+                        // Format: "2026-01-30 01:30" - need to ensure proper parsing
+                        // Replace space with T for ISO-like format
+                        const normalized = match.kickOff.replace(' ', 'T');
+                        kickOffTime = new Date(normalized);
+                    }
+                    
+                    // Check if date is valid
+                    if (isNaN(kickOffTime.getTime())) {
+                        console.warn("[getMatchs] Invalid kickOff date:", match.kickOff, "for match", match.eventId);
+                        return false;
+                    }
+                    
+                    // Use cutoffTime (1 hour ago) instead of now to be less strict
+                    // This ensures we show matches from today even if they're slightly in the past
+                    const isFuture = kickOffTime >= cutoffTime;
+                    if (!isFuture) {
+                        console.log("[getMatchs] Filtering out past match:", match.kickOff, "kickOffTime:", kickOffTime.toISOString(), "cutoff:", cutoffTime.toISOString(), "diff (ms):", cutoffTime.getTime() - kickOffTime.getTime());
+                    }
+                    // Use >= cutoffTime to be less strict (includes matches from last hour)
+                    return isFuture;
+                } catch (error) {
+                    console.warn("[getMatchs] Error parsing kickOff:", match.kickOff, error);
+                    return false;
+                }
+            });
+
+            // Log dates after filtering
+            console.log("[getMatchs] ========================================");
+            console.log("[getMatchs] FUTURE MATCHES DATE ANALYSIS (AFTER FILTERING):");
+            const datesAfterFilter = [...new Set(futureMatches.map((m: any) => {
+                if (!m.kickOff) return null;
+                const datePart = m.kickOff.split(' ')[0].split('T')[0];
+                return datePart;
+            }).filter(Boolean))].sort();
+            console.log("[getMatchs] Total future matches:", futureMatches.length);
+            console.log("[getMatchs] Total unique dates:", datesAfterFilter.length);
+            if (datesAfterFilter.length > 0) {
+                console.log("[getMatchs] Date range:", datesAfterFilter[0], "to", datesAfterFilter[datesAfterFilter.length - 1]);
+                console.log("[getMatchs] All unique dates:", datesAfterFilter);
+                console.log("[getMatchs] Matches per date:", datesAfterFilter.map(date => ({
+                    date,
+                    count: futureMatches.filter((m: any) => {
+                        if (!m.kickOff) return false;
+                        const datePart = m.kickOff.split(' ')[0].split('T')[0];
+                        return datePart === date;
+                    }).length
+                })));
+            } else {
+                console.log("[getMatchs] WARNING: No future matches found!");
+            }
+            console.log("[getMatchs] ========================================");
+
             const totalDuration = Date.now() - methodStartTime;
             console.log("[getMatchs] Total method duration:", totalDuration + "ms");
+            console.log("[getMatchs] Returning", futureMatches.length, "future matches (filtered from", allMatches.length, "total matches)");
             console.log("[getMatchs] ✅ Ready to return matches with crown data calculated!");
             
             if (!res.headersSent) {
-                return res.json(allMatches);
+                return res.json(futureMatches);
             } else {
                 console.warn("[getMatchs] Response already sent, cannot return API matches");
                 return;

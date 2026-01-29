@@ -17,9 +17,9 @@ export const useMatchs = (
       }
       throw new Error(`Failed to fetch matches: ${res.status}`);
     },
+    staleTime: 10000, // 10 seconds - match data changes frequently (like 111 project)
+    refetchInterval: 30000, // Refetch every 30 seconds for live updates (like 111 project)
     refetchOnMount: true, // Refetch when component mounts
     refetchOnWindowFocus: true, // Refetch when window regains focus
-    staleTime: 30 * 1000, // Consider data fresh for 30 seconds (reduced for production)
-    gcTime: 60 * 1000, // Keep in cache for 1 minute (reduced for production)
   });
 };

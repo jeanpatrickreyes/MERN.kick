@@ -31,7 +31,15 @@ export function CardMatch({
 
     const dateStr = match.kickOff;
     moment.locale('zh-hk');
-    const date = moment.tz(dateStr, 'Asia/Hong_Kong');
+    // Handle both "YYYY-MM-DD HH:mm" and ISO format "YYYY-MM-DDTHH:mm:ss..."
+    let date: moment.Moment;
+    if (dateStr.includes('T')) {
+        // ISO format: "2026-01-30T00:00:00.000+08:00"
+        date = moment.tz(dateStr, 'Asia/Hong_Kong');
+    } else {
+        // Format: "2026-01-30 01:30"
+        date = moment.tz(dateStr, 'YYYY-MM-DD HH:mm', 'Asia/Hong_Kong');
+    }
     const day = date.date();
     const chineseShortMonths = [
         t('jan'),
