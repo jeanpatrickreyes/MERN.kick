@@ -16,7 +16,7 @@ class UsersController {
             return res.status(400).json({ error: "email and password are required." });
         }
         try {
-            let userId: string;
+            let userId: string | undefined;
             // Normalize email to lowercase for comparison
             const normalizedEmail = email.toLowerCase().trim();
             
@@ -115,7 +115,7 @@ class UsersController {
             }
 
             // Verify password using bcrypt
-            if (!userData || !userData.password) {
+            if (!userData || !userData.password || !userId) {
                 return res.status(401).json({ error: "Invalid credentials." });
             }
             
