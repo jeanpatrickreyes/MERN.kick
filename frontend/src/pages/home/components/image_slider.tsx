@@ -129,8 +129,8 @@ export default function ImageSlider() {
                 </svg>
             </button>
 
-            {/* Dots indicator */}
-            <div className="absolute bottom-2 sm:bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-10">
+            {/* Dots indicator - Hidden */}
+            {/* <div className="absolute bottom-2 sm:bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-10">
                 {sliderImages.map((_, index) => (
                     <button
                         key={index}
@@ -143,7 +143,7 @@ export default function ImageSlider() {
                         aria-label={`Go to slide ${index + 1}`}
                     />
                 ))}
-            </div>
+            </div> */}
         </div>
     );
 }
