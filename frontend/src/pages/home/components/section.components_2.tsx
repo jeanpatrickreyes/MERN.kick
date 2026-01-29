@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import ImageSlider from "./image_slider";
 
 export default function SectionComponent2() {
     const { t } = useTranslation();
@@ -29,6 +30,11 @@ export default function SectionComponent2() {
         <section className="flex flex-col bg-gradient-to-b from-white to-white/95 pb-20">
             <div className="w-screen items-center z-0 justify-center flex sm:mt-5 mt-14">
                 <div className="h-[1px] w-11/12 bg-gray-500" />
+            </div>
+
+            {/* Image Slider Section */}
+            <div className="w-full px-4 sm:px-8 py-8 sm:py-12">
+                <ImageSlider />
             </div>
 
             <div className="relative z-10 w-full flex items-center flex-col pl-10">
