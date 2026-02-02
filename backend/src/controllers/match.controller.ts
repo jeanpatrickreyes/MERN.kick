@@ -438,8 +438,111 @@ class MatchController {
                         const dateB = new Date(b.kickOff);
                         return dateA.getTime() - dateB.getTime();
                     });
+                    // Ensure matches have predictions/IA calculated - calculate if missing
+                    console.log("[getMatchs] Checking if matches need predictions/IA calculation...");
+                    const matchesNeedingCalc = sortedMatches.filter((match: any) => {
+                        const hasCompletePredictions = match.predictions && match.predictions.homeWinRate && match.predictions.awayWinRate;
+                        const hasCompleteIA = match.ia && match.ia.home && match.ia.away;
+                        return !hasCompletePredictions || !hasCompleteIA;
+                    });
+                    
+                    if (matchesNeedingCalc.length > 0) {
+                        console.log("[getMatchs] Found", matchesNeedingCalc.length, "matches needing calculation, calculating now...");
+                        // Calculate in parallel for matches missing data
+                        const calcPromises = matchesNeedingCalc.map(async (match: any) => {
+                            try {
+                                // Use the same calculation logic as the main path
+                                let fixture_id = match.fixture_id;
+                                const needsPredictions = !match.predictions;
+                                const needsIA = !match.ia || !match.ia.home || !match.ia.away;
+                                
+                                // Get fixture_id if needed
+                                if (!fixture_id && (needsPredictions || needsIA) && match.homeTeamNameEn && match.awayTeamNameEn && match.kickOffDate) {
+                                    try {
+                                        const [month, day, year] = match.kickOffDate.split("/");
+                                        if (month && day && year) {
+                                            const formattedDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+                                            let team = await ApiFixtureByDate(formattedDate);
+                                            if (team && Array.isArray(team) && team.length > 0) {
+                                                const fixture = await matchTeamSimilarity(team, match.homeTeamNameEn, match.awayTeamNameEn);
+                                                if (fixture && fixture.id) {
+                                                    fixture_id = fixture.id;
+                                                    match.fixture_id = fixture.id;
+                                                }
+                                            }
+                                        }
+                                    } catch (error) {
+                                        console.error("[getMatchs] Error fetching fixture for match", match.eventId, ":", error);
+                                    }
+                                }
+                                
+                                // Calculate predictions if needed
+                                if (needsPredictions && fixture_id) {
+                                    try {
+                                        const predictions = await Predictions(fixture_id);
+                                        if (predictions) {
+                                            match.predictions = predictions;
+                                        }
+                                    } catch (error) {
+                                        console.error("[getMatchs] Error calculating predictions:", error);
+                                    }
+                                }
+                                
+                                // Calculate IA if needed
+                                if (needsIA && match.homeForm && match.awayForm) {
+                                    try {
+                                        let playersInjured = { home: [], away: [] };
+                                        if (fixture_id && match.league_id && match.homeTeamId && match.awayTeamId) {
+                                            try {
+                                                const dateStr = match.kickOff?.split(' ')[0];
+                                                playersInjured = await ApiTopScoreInjured(fixture_id, match.league_id, dateStr, match.homeTeamId, match.awayTeamId);
+                                            } catch (error) {
+                                                // Ignore injured players fetch errors
+                                            }
+                                        }
+                                        
+                                        const resultIa = await IaProbality(match, playersInjured);
+                                        if (resultIa) {
+                                            const total = resultIa.home + resultIa.away;
+                                            const homeShare = resultIa.home / total;
+                                            const awayShare = resultIa.away / total;
+                                            const redistributedHome = resultIa.home + resultIa.draw * homeShare;
+                                            const redistributedAway = resultIa.away + resultIa.draw * awayShare;
+                                            match.ia = {
+                                                home: Number(redistributedHome.toFixed(2)),
+                                                away: Number(redistributedAway.toFixed(2)),
+                                                draw: resultIa.draw
+                                            };
+                                        } else if (match.predictions) {
+                                            // Fallback to CalculationProbality
+                                            const homeWinRate = match.predictions.homeWinRate || 50;
+                                            const awayWinRate = match.predictions.awayWinRate || 50;
+                                            const result = CalculationProbality(playersInjured, homeWinRate, awayWinRate, match.homeForm.split(","), match.awayForm.split(","));
+                                            if (result) {
+                                                match.ia = result;
+                                            }
+                                        }
+                                    } catch (error) {
+                                        console.error("[getMatchs] Error calculating IA:", error);
+                                    }
+                                }
+                                
+                                // Save updated match to database
+                                if (match.predictions || match.ia) {
+                                    const matchRef = doc(db, Tables.matches, match.eventId);
+                                    await setDoc(matchRef, match, { merge: true });
+                                }
+                            } catch (error) {
+                                console.error("[getMatchs] Error processing match", match.eventId, ":", error);
+                            }
+                        });
+                        
+                        await Promise.allSettled(calcPromises);
+                        console.log("[getMatchs] Completed calculation for matches needing data");
+                    }
+                    
                     console.log("[getMatchs] Returning", sortedMatches.length, "matches from database (HKJC API returned 0, filtered to future matches only)");
-                    console.log("[getMatchs] Sample database matches:", sortedMatches.slice(0, 2).map((m: any) => ({ id: m.id || m.eventId, home: m.homeTeamName || 'N/A', away: m.awayTeamName || 'N/A', kickOff: m.kickOff })));
+                    console.log("[getMatchs] Sample database matches:", sortedMatches.slice(0, 2).map((m: any) => ({ id: m.id || m.eventId, home: m.homeTeamName || 'N/A', away: m.awayTeamName || 'N/A', hasPredictions: !!m.predictions, hasIA: !!m.ia })));
                     if (!res.headersSent) {
                         return res.json(sortedMatches);
                     } else {
@@ -538,6 +641,109 @@ class MatchController {
                         return dateA.getTime() - dateB.getTime();
                     });
 
+                    // Ensure matches have predictions/IA calculated - calculate if missing
+                    console.log("[getMatchs] Checking if matches need predictions/IA calculation...");
+                    const matchesNeedingCalc = sortedMatches.filter((match: any) => {
+                        const hasCompletePredictions = match.predictions && match.predictions.homeWinRate && match.predictions.awayWinRate;
+                        const hasCompleteIA = match.ia && match.ia.home && match.ia.away;
+                        return !hasCompletePredictions || !hasCompleteIA;
+                    });
+                    
+                    if (matchesNeedingCalc.length > 0) {
+                        console.log("[getMatchs] Found", matchesNeedingCalc.length, "matches needing calculation, calculating now...");
+                        // Calculate in parallel for matches missing data
+                        const calcPromises = matchesNeedingCalc.map(async (match: any) => {
+                            try {
+                                // Use the same calculation logic as the main path
+                                let fixture_id = match.fixture_id;
+                                const needsPredictions = !match.predictions;
+                                const needsIA = !match.ia || !match.ia.home || !match.ia.away;
+                                
+                                // Get fixture_id if needed
+                                if (!fixture_id && (needsPredictions || needsIA) && match.homeTeamNameEn && match.awayTeamNameEn && match.kickOffDate) {
+                                    try {
+                                        const [month, day, year] = match.kickOffDate.split("/");
+                                        if (month && day && year) {
+                                            const formattedDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+                                            let team = await ApiFixtureByDate(formattedDate);
+                                            if (team && Array.isArray(team) && team.length > 0) {
+                                                const fixture = await matchTeamSimilarity(team, match.homeTeamNameEn, match.awayTeamNameEn);
+                                                if (fixture && fixture.id) {
+                                                    fixture_id = fixture.id;
+                                                    match.fixture_id = fixture.id;
+                                                }
+                                            }
+                                        }
+                                    } catch (error) {
+                                        console.error("[getMatchs] Error fetching fixture for match", match.eventId, ":", error);
+                                    }
+                                }
+                                
+                                // Calculate predictions if needed
+                                if (needsPredictions && fixture_id) {
+                                    try {
+                                        const predictions = await Predictions(fixture_id);
+                                        if (predictions) {
+                                            match.predictions = predictions;
+                                        }
+                                    } catch (error) {
+                                        console.error("[getMatchs] Error calculating predictions:", error);
+                                    }
+                                }
+                                
+                                // Calculate IA if needed
+                                if (needsIA && match.homeForm && match.awayForm) {
+                                    try {
+                                        let playersInjured = { home: [], away: [] };
+                                        if (fixture_id && match.league_id && match.homeTeamId && match.awayTeamId) {
+                                            try {
+                                                const dateStr = match.kickOff?.split(' ')[0];
+                                                playersInjured = await ApiTopScoreInjured(fixture_id, match.league_id, dateStr, match.homeTeamId, match.awayTeamId);
+                                            } catch (error) {
+                                                // Ignore injured players fetch errors
+                                            }
+                                        }
+                                        
+                                        const resultIa = await IaProbality(match, playersInjured);
+                                        if (resultIa) {
+                                            const total = resultIa.home + resultIa.away;
+                                            const homeShare = resultIa.home / total;
+                                            const awayShare = resultIa.away / total;
+                                            const redistributedHome = resultIa.home + resultIa.draw * homeShare;
+                                            const redistributedAway = resultIa.away + resultIa.draw * awayShare;
+                                            match.ia = {
+                                                home: Number(redistributedHome.toFixed(2)),
+                                                away: Number(redistributedAway.toFixed(2)),
+                                                draw: resultIa.draw
+                                            };
+                                        } else if (match.predictions) {
+                                            // Fallback to CalculationProbality
+                                            const homeWinRate = match.predictions.homeWinRate || 50;
+                                            const awayWinRate = match.predictions.awayWinRate || 50;
+                                            const result = CalculationProbality(playersInjured, homeWinRate, awayWinRate, match.homeForm.split(","), match.awayForm.split(","));
+                                            if (result) {
+                                                match.ia = result;
+                                            }
+                                        }
+                                    } catch (error) {
+                                        console.error("[getMatchs] Error calculating IA:", error);
+                                    }
+                                }
+                                
+                                // Save updated match to database
+                                if (match.predictions || match.ia) {
+                                    const matchRef = doc(db, Tables.matches, match.eventId);
+                                    await setDoc(matchRef, match, { merge: true });
+                                }
+                            } catch (error) {
+                                console.error("[getMatchs] Error processing match", match.eventId, ":", error);
+                            }
+                        });
+                        
+                        await Promise.allSettled(calcPromises);
+                        console.log("[getMatchs] Completed calculation for matches needing data");
+                    }
+                    
                     console.log("[getMatchs] Returning", sortedMatches.length, "matches from database (filtered to future matches only)");
                     console.log("[getMatchs] Sample matches:", sortedMatches.slice(0, 2).map((m: any) => ({ id: m.id || m.eventId, home: m.homeTeamName || 'N/A', away: m.awayTeamName || 'N/A', hasPredictions: !!m.predictions, hasIA: !!m.ia })));
                     if (!res.headersSent) {
