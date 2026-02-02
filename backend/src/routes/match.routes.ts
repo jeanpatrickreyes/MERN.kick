@@ -63,6 +63,11 @@ matchRouter.post('/clear-cache',
         await MatchController.clearMatchesCache(req, res);
     });
 
+matchRouter.post('/force-convert-chinese',
+    async (req, res) => {
+        await MatchController.forceConvertToSimplifiedChinese(req, res);
+    });
+
 matchRouter.post('/refresh-all',
     async (req, res) => {
         await MatchController.refreshAllMatches(req, res);
