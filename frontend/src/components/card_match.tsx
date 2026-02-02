@@ -53,8 +53,21 @@ export function CardMatch({
     ];
     const month = chineseShortMonths[date.month()];
 
-    const homeWin = match.ia?.home ?? match.predictions?.homeWinRate ?? 0;
-    const awayWin = match.ia?.away ?? match.predictions?.awayWinRate ?? 0;
+    // Get raw probabilities and normalize (same logic as analysis page for consistency)
+    let homeWin = match.ia?.home ?? match.predictions?.homeWinRate ?? 0;
+    let awayWin = match.ia?.away ?? match.predictions?.awayWinRate ?? 0;
+    
+    // Normalize to ensure they sum to exactly 100% (prevent 100%/0% scenarios)
+    homeWin = Math.max(0, homeWin);
+    awayWin = Math.max(0, awayWin);
+    const total = homeWin + awayWin;
+    if (total > 0) {
+        homeWin = (homeWin / total) * 100;
+        awayWin = (awayWin / total) * 100;
+    } else {
+        homeWin = 50;
+        awayWin = 50;
+    }
 
     const handleClick = () => {
         if (id) {

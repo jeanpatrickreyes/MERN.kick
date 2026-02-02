@@ -1715,14 +1715,48 @@ class MatchController {
                 matchData.ia = existingMatchData.ia;
             }
 
-            let homeWin = Math.round(matchData.ia?.home ?? matchData.predictions?.homeWinRate ?? 0);
-            let awayWin = Math.round(matchData.ia?.away ?? matchData.predictions?.awayWinRate ?? 0);
+            // Get raw probabilities
+            let homeWin = matchData.ia?.home ?? matchData.predictions?.homeWinRate ?? 0;
+            let awayWin = matchData.ia?.away ?? matchData.predictions?.awayWinRate ?? 0;
 
-            if (homeWin >= awayWin) {
-                awayWin = Math.abs(homeWin - 100);
+            // Ensure values are non-negative
+            homeWin = Math.max(0, homeWin);
+            awayWin = Math.max(0, awayWin);
+
+            // Normalize to ensure they sum to exactly 100% (prevent 100%/0% scenarios)
+            // Use a minimum threshold to avoid extreme values
+            const MIN_WIN_RATE = 5; // Minimum 5% for any team
+            const MAX_WIN_RATE = 95; // Maximum 95% for any team
+            
+            const total = homeWin + awayWin;
+            if (total > 0) {
+                // Normalize to sum to 100%
+                homeWin = (homeWin / total) * 100;
+                awayWin = (awayWin / total) * 100;
+                
+                // Apply min/max constraints to prevent 100%/0% or 0%/100%
+                if (homeWin < MIN_WIN_RATE) {
+                    homeWin = MIN_WIN_RATE;
+                    awayWin = 100 - MIN_WIN_RATE;
+                } else if (homeWin > MAX_WIN_RATE) {
+                    homeWin = MAX_WIN_RATE;
+                    awayWin = 100 - MAX_WIN_RATE;
+                } else if (awayWin < MIN_WIN_RATE) {
+                    awayWin = MIN_WIN_RATE;
+                    homeWin = 100 - MIN_WIN_RATE;
+                } else if (awayWin > MAX_WIN_RATE) {
+                    awayWin = MAX_WIN_RATE;
+                    homeWin = 100 - MAX_WIN_RATE;
+                }
             } else {
-                homeWin = Math.abs(awayWin - 100);
+                // If both are 0, default to 50/50
+                homeWin = 50;
+                awayWin = 50;
             }
+
+            // Round to 2 decimal places
+            homeWin = Math.round(homeWin * 100) / 100;
+            awayWin = Math.round(awayWin * 100) / 100;
 
             if (matchData.ia?.home && matchData.ia?.away) {
                 matchData.ia.home = homeWin;
