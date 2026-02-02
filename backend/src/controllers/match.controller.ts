@@ -488,8 +488,8 @@ class MatchController {
                                     }
                                 }
                                 
-                                // Calculate IA if needed
-                                if (needsIA && match.homeForm && match.awayForm) {
+                                // Calculate IA if needed - always try to calculate even with minimal data
+                                if (needsIA) {
                                     try {
                                         let playersInjured = { home: [], away: [] };
                                         if (fixture_id && match.league_id && match.homeTeamId && match.awayTeamId) {
@@ -501,25 +501,31 @@ class MatchController {
                                             }
                                         }
                                         
-                                        const resultIa = await IaProbality(match, playersInjured);
-                                        if (resultIa) {
-                                            const total = resultIa.home + resultIa.away;
-                                            const homeShare = resultIa.home / total;
-                                            const awayShare = resultIa.away / total;
-                                            const redistributedHome = resultIa.home + resultIa.draw * homeShare;
-                                            const redistributedAway = resultIa.away + resultIa.draw * awayShare;
-                                            match.ia = {
-                                                home: Number(redistributedHome.toFixed(2)),
-                                                away: Number(redistributedAway.toFixed(2)),
-                                                draw: resultIa.draw
-                                            };
-                                        } else if (match.predictions) {
-                                            // Fallback to CalculationProbality
-                                            const homeWinRate = match.predictions.homeWinRate || 50;
-                                            const awayWinRate = match.predictions.awayWinRate || 50;
+                                        // Try IaProbality if we have homeForm and awayForm
+                                        if (match.homeForm && match.awayForm) {
+                                            const resultIa = await IaProbality(match, playersInjured);
+                                            if (resultIa) {
+                                                const total = resultIa.home + resultIa.away;
+                                                const homeShare = resultIa.home / total;
+                                                const awayShare = resultIa.away / total;
+                                                const redistributedHome = resultIa.home + resultIa.draw * homeShare;
+                                                const redistributedAway = resultIa.away + resultIa.draw * awayShare;
+                                                match.ia = {
+                                                    home: Number(redistributedHome.toFixed(2)),
+                                                    away: Number(redistributedAway.toFixed(2)),
+                                                    draw: resultIa.draw
+                                                };
+                                            }
+                                        }
+                                        
+                                        // Fallback to CalculationProbality if IaProbality failed or we don't have form data
+                                        if (!match.ia && match.homeForm && match.awayForm) {
+                                            const homeWinRate = match.predictions?.homeWinRate || 50;
+                                            const awayWinRate = match.predictions?.awayWinRate || 50;
                                             const result = CalculationProbality(playersInjured, homeWinRate, awayWinRate, match.homeForm.split(","), match.awayForm.split(","));
                                             if (result) {
                                                 match.ia = result;
+                                                console.log("[getMatchs] ✓ Calculated IA (fallback) for match", match.eventId, "- home:", result.home.toFixed(1), "%, away:", result.away.toFixed(1), "%");
                                             }
                                         }
                                     } catch (error) {

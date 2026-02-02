@@ -5,12 +5,13 @@ import AppGlobal from "../ultis/global";
 
 export const useMatchs = (
   startDate?: string,
-  endDate?: string
+  endDate?: string,
+  forceRefresh?: boolean
 ): UseQueryResult<Match[], Error> => {
   return useQuery<Match[], Error>({
-    queryKey: ["matchs", startDate, endDate],
+    queryKey: ["matchs", startDate, endDate, forceRefresh],
     queryFn: async () => {
-      const url = AppGlobal.baseURL + "match/match-data";
+      const url = AppGlobal.baseURL + "match/match-data" + (forceRefresh ? "?refresh=true" : "");
       const res = await API.GET(url);
       if (res.status === 200 && res.data) {
         return Array.isArray(res.data) ? res.data : [];
