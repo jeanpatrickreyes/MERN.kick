@@ -1967,6 +1967,88 @@ class MatchController {
         }
     }
 
+    /**
+     * Clear matches cache - delete matches missing calculated data (ia/predictions)
+     * This forces recalculation on next fetch
+     */
+    static async clearMatchesCache(req: Request, res: Response) {
+        try {
+            console.log("[clearMatchesCache] Starting cache clear...");
+            const matchesCol = collection(db, Tables.matches);
+            const matchesSnapshot = await getDocs(matchesCol);
+            
+            if (matchesSnapshot.empty) {
+                return res.json({ 
+                    message: 'No matches found in database',
+                    deleted: 0,
+                    total: 0
+                });
+            }
+
+            let deletedCount = 0;
+            const deletePromises: Promise<void>[] = [];
+
+            for (const docSnap of matchesSnapshot.docs) {
+                const data = docSnap.data();
+                const hasCompletePredictions = data.predictions && data.predictions.homeWinRate && data.predictions.awayWinRate;
+                const hasCompleteIA = data.ia && data.ia.home && data.ia.away;
+                
+                // Delete matches missing calculated data
+                if (!hasCompletePredictions && !hasCompleteIA) {
+                    const matchRef = doc(db, Tables.matches, docSnap.id);
+                    deletePromises.push(deleteDoc(matchRef));
+                    deletedCount++;
+                }
+            }
+
+            // Delete in parallel (but limit concurrency to avoid overwhelming the database)
+            const BATCH_SIZE = 50;
+            for (let i = 0; i < deletePromises.length; i += BATCH_SIZE) {
+                const batch = deletePromises.slice(i, i + BATCH_SIZE);
+                await Promise.all(batch);
+                console.log(`[clearMatchesCache] Deleted ${Math.min(i + BATCH_SIZE, deletePromises.length)}/${deletePromises.length} matches...`);
+            }
+
+            console.log(`[clearMatchesCache] Completed. Deleted ${deletedCount} matches out of ${matchesSnapshot.docs.length} total`);
+            
+            return res.json({
+                message: 'Cache cleared successfully',
+                deleted: deletedCount,
+                total: matchesSnapshot.docs.length,
+                remaining: matchesSnapshot.docs.length - deletedCount
+            });
+        } catch (error) {
+            console.error('[clearMatchesCache] Error:', error);
+            return res.status(500).json({ 
+                error: 'Failed to clear cache',
+                message: error instanceof Error ? error.message : String(error)
+            });
+        }
+    }
+
+    /**
+     * Force refresh all matches - triggers recalculation
+     * Note: This is informational - actual refresh happens when matches are fetched with ?refresh=true
+     */
+    static async refreshAllMatches(req: Request, res: Response) {
+        try {
+            console.log("[refreshAllMatches] Refresh requested");
+            const matchesCol = collection(db, Tables.matches);
+            const matchesSnapshot = await getDocs(matchesCol);
+            
+            return res.json({
+                message: 'To refresh matches, use ?refresh=true when fetching matches',
+                total: matchesSnapshot.docs.length,
+                instructions: 'Call GET /api/match/match-data?refresh=true to force recalculation of all matches'
+            });
+        } catch (error) {
+            console.error('[refreshAllMatches] Error:', error);
+            return res.status(500).json({ 
+                error: 'Failed to get match count',
+                message: error instanceof Error ? error.message : String(error)
+            });
+        }
+    }
 
 }
 

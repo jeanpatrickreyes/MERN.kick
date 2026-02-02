@@ -57,6 +57,17 @@ matchRouter.get('/match-data/all/generate',
         await MatchController.excelGenerateAll(req, res);
     });
 
+// Admin endpoints for cache management
+matchRouter.post('/clear-cache',
+    async (req, res) => {
+        await MatchController.clearMatchesCache(req, res);
+    });
+
+matchRouter.post('/refresh-all',
+    async (req, res) => {
+        await MatchController.refreshAllMatches(req, res);
+    });
+
 
 
 export { matchRouter };
