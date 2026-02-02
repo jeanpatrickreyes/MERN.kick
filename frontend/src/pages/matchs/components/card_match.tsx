@@ -42,8 +42,8 @@ export function CardMatchComponent({
     ];
     const month = chineseShortMonths[date.month()];
 
-    const homeWin = match.ia && match.ia.home ? match.ia.home : match.predictions && match.predictions.homeWinRate ? match.predictions.homeWinRate : null;
-    const awayWin = match.ia && match.ia.away ? match.ia.away : match.predictions && match.predictions.awayWinRate ? match.predictions.awayWinRate : null;
+    const homeWin = match.ia?.home ?? match.predictions?.homeWinRate ?? 0;
+    const awayWin = match.ia?.away ?? match.predictions?.awayWinRate ?? 0;
 
     return (
         <div
@@ -88,7 +88,7 @@ export function CardMatchComponent({
                                 >
                                     {teams[0]}
                                 </ThemedText>
-                                {homeWin && <Crown winRate={homeWin} size="w-3 sm:w-4" />}
+                                {homeWin > 70 && <Crown winRate={homeWin} size="w-3 sm:w-4" />}
                             </div>
 
                             <div style={{ height: 5 }} />
@@ -170,7 +170,7 @@ export function CardMatchComponent({
                                 >
                                     {teams[1]}
                                 </ThemedText>
-                                {awayWin && <Crown winRate={awayWin} size="w-3 sm:w-4" />}
+                                {awayWin > 70 && <Crown winRate={awayWin} size="w-3 sm:w-4" />}
                             </div>
                             <div style={{ height: 5 }} />
 

@@ -53,8 +53,8 @@ export function CardMatch({
     ];
     const month = chineseShortMonths[date.month()];
 
-    const homeWin = match.ia && match.ia.home ? match.ia.home : match.predictions && match.predictions.homeWinRate ? match.predictions.homeWinRate : null;
-    const awayWin = match.ia && match.ia.away ? match.ia.away : match.predictions && match.predictions.awayWinRate ? match.predictions.awayWinRate : null;
+    const homeWin = match.ia?.home ?? match.predictions?.homeWinRate ?? 0;
+    const awayWin = match.ia?.away ?? match.predictions?.awayWinRate ?? 0;
 
     const handleClick = () => {
         if (id) {
@@ -92,10 +92,8 @@ export function CardMatch({
                     <div className="flex flex-col items-center justify-center">
                         {/* Show crowns for the team with higher win rate above REPORT */}
                         {(() => {
-                            const higherWinRate = homeWin && awayWin 
-                                ? (homeWin > awayWin ? homeWin : awayWin)
-                                : (homeWin || awayWin);
-                            return higherWinRate && higherWinRate > 70 ? (
+                            const higherWinRate = Math.max(homeWin, awayWin);
+                            return higherWinRate > 70 ? (
                                 <div className="mb-1.5 flex justify-center">
                                     <Crown winRate={higherWinRate} size="w-4 sm:w-5" />
                                 </div>
