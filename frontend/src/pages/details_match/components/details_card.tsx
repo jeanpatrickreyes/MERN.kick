@@ -16,8 +16,24 @@ function DetailsCardComponent({
 }: Props) {
     const { t } = useTranslation();
 
-    const homeWin = probability.ia && probability.ia.home ? probability.ia.home : (probability.predictions?.homeWinRate ?? 0);
-    const awayWin = probability.ia && probability.ia.away ? probability.ia.away : (probability.predictions?.awayWinRate ?? 0);
+    // Get raw probabilities
+    let homeWin = probability.ia && probability.ia.home ? probability.ia.home : (probability.predictions?.homeWinRate ?? 0);
+    let awayWin = probability.ia && probability.ia.away ? probability.ia.away : (probability.predictions?.awayWinRate ?? 0);
+
+    // Ensure values are non-negative
+    homeWin = Math.max(0, homeWin);
+    awayWin = Math.max(0, awayWin);
+
+    // Normalize to ensure they sum to exactly 100%
+    const total = homeWin + awayWin;
+    if (total > 0) {
+        homeWin = (homeWin / total) * 100;
+        awayWin = (awayWin / total) * 100;
+    } else {
+        // If both are 0, default to 50/50
+        homeWin = 50;
+        awayWin = 50;
+    }
 
     //HOME
     const homeStats = probability.lastGames.homeTeam;
