@@ -6,9 +6,10 @@ import moment from 'moment-timezone';
 import { Probability } from "../models/probability";
 import useIsMobile from "../hooks/useIsMobile";
 import Crown from "./crown";
+import { getTeamNameInCurrentLanguage } from "../ultis/languageUtils";
 
 export type Props = {
-    teams: string[]
+    teams?: string[] // Deprecated: team names are now calculated internally from match data
     id?: string
     widht?: any,
     match: Match | Probability
@@ -16,13 +17,12 @@ export type Props = {
 };
 
 export function CardMatch({
-    teams,
     id,
     widht,
     navigate,
     match,
 }: Props) {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const isMobile = useIsMobile();
 
     const dateStr = match.kickOff;
@@ -69,6 +69,20 @@ export function CardMatch({
         awayWin = 50;
     }
 
+    // Get team names in current language (reactive to language changes)
+    // Accessing i18n.language ensures component re-renders when language changes via useTranslation hook
+    const homeTeamName = getTeamNameInCurrentLanguage(
+        (match as Match).homeLanguages || (match as Probability).homeLanguages,
+        (match as Match).homeTeamName || (match as Probability).homeTeamName
+    );
+    const awayTeamName = getTeamNameInCurrentLanguage(
+        (match as Match).awayLanguages || (match as Probability).awayLanguages,
+        (match as Match).awayTeamName || (match as Probability).awayTeamName
+    );
+    
+    // Ensure component re-renders when language changes
+    void i18n.language;
+
     const handleClick = () => {
         if (id) {
             navigate("/details-match/" + id);
@@ -93,12 +107,12 @@ export function CardMatch({
                     <div className="flex items-center space-y-1 flex-row">
                         <img
                             src={match.homeTeamLogo}
-                            alt={teams[0]}
+                            alt={homeTeamName}
                             className="sm:w-16 sm:h-16 h-10 w-10 object-contain"
                         />
                         <div className="text-center ml-2 sm:w-48 w-36"
                             style={{ width: widht }}>
-                            <p className="sm:text-base text-xs font-bold mt-1"> {teams[0]}</p>
+                            <p className="sm:text-base text-xs font-bold mt-1"> {homeTeamName}</p>
                         </div>
                     </div>
 
@@ -124,11 +138,11 @@ export function CardMatch({
 
                     <div className="flex items-center space-y-1 flex-row">
                         <div className="text-center ml-2 sm:w-48 w-36" style={{ width: widht }}>
-                            <p className="sm:text-base text-xs font-bold mt-1"> {teams[1]}</p>
+                            <p className="sm:text-base text-xs font-bold mt-1"> {awayTeamName}</p>
                         </div>
                         <img
                             src={match.awayTeamLogo}
-                            alt={teams[1]}
+                            alt={awayTeamName}
                             className="sm:w-16 sm:h-16 h-10 w-10 object-contain"
                         />
                     </div>

@@ -6,6 +6,7 @@ import AppColors from "../../../ultis/colors";
 import { NavigateFunction } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import Crown from "../../../components/crown";
+import { getTeamNameInCurrentLanguage } from "../../../ultis/languageUtils";
 
 export type Props = {
     teams: string[]
@@ -18,7 +19,7 @@ export function CardMatchComponent({
     navigate,
     match,
 }: Props) {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const kickOffTime = match.kickOff;
     const timeOnly = kickOffTime.slice(11, 16);
 
@@ -57,6 +58,14 @@ export function CardMatchComponent({
         homeWin = 50;
         awayWin = 50;
     }
+
+    // Get team names in current language (reactive to language changes)
+    // Accessing i18n.language ensures component re-renders when language changes via useTranslation hook
+    const homeTeamName = getTeamNameInCurrentLanguage(match.homeLanguages, match.homeTeamName);
+    const awayTeamName = getTeamNameInCurrentLanguage(match.awayLanguages, match.awayTeamName);
+    
+    // Ensure component re-renders when language changes
+    void i18n.language;
 
     return (
         <div
@@ -99,7 +108,7 @@ export function CardMatchComponent({
                                         WebkitBoxOrient: 'vertical',
                                     }}
                                 >
-                                    {teams[0]}
+                                    {homeTeamName}
                                 </ThemedText>
                                 {homeWin > 70 && <Crown winRate={homeWin} size="w-3 sm:w-4" />}
                             </div>
@@ -181,7 +190,7 @@ export function CardMatchComponent({
                                         WebkitBoxOrient: 'vertical',
                                     }}
                                 >
-                                    {teams[1]}
+                                    {awayTeamName}
                                 </ThemedText>
                                 {awayWin > 70 && <Crown winRate={awayWin} size="w-3 sm:w-4" />}
                             </div>

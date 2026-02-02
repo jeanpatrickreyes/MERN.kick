@@ -547,6 +547,55 @@ class MatchController {
                         console.log("[getMatchs] Completed calculation for matches needing data");
                     }
                     
+                    // Convert Chinese names to simplified Chinese for matches returned from database
+                    console.log("[getMatchs] Converting team names to Simplified Chinese for", sortedMatches.length, "matches...");
+                    const convertPromises = sortedMatches.map(async (match: any) => {
+                        if (match.homeLanguages?.zh && match.homeLanguages.zh.trim() !== "") {
+                            const needsConversion = !match.homeLanguages.zhCN || 
+                                                  match.homeLanguages.zhCN.trim() === "" || 
+                                                  match.homeLanguages.zhCN === match.homeLanguages.zh;
+                            if (needsConversion) {
+                                try {
+                                    const converted = await convertToSimplifiedChinese(match.homeLanguages.zh);
+                                    if (converted && converted.trim() !== "" && converted !== match.homeLanguages.zh) {
+                                        match.homeLanguages.zhCN = converted;
+                                    } else {
+                                        match.homeLanguages.zhCN = match.homeLanguages.zh;
+                                    }
+                                } catch (error) {
+                                    match.homeLanguages.zhCN = match.homeLanguages.zh;
+                                }
+                            }
+                        }
+                        if (match.awayLanguages?.zh && match.awayLanguages.zh.trim() !== "") {
+                            const needsConversion = !match.awayLanguages.zhCN || 
+                                                  match.awayLanguages.zhCN.trim() === "" || 
+                                                  match.awayLanguages.zhCN === match.awayLanguages.zh;
+                            if (needsConversion) {
+                                try {
+                                    const converted = await convertToSimplifiedChinese(match.awayLanguages.zh);
+                                    if (converted && converted.trim() !== "" && converted !== match.awayLanguages.zh) {
+                                        match.awayLanguages.zhCN = converted;
+                                    } else {
+                                        match.awayLanguages.zhCN = match.awayLanguages.zh;
+                                    }
+                                } catch (error) {
+                                    match.awayLanguages.zhCN = match.awayLanguages.zh;
+                                }
+                            }
+                        }
+                    });
+                    await Promise.allSettled(convertPromises);
+                    
+                    // Save converted names back to database
+                    const savePromises = sortedMatches.map(async (match: any) => {
+                        if (match.homeLanguages?.zhCN || match.awayLanguages?.zhCN) {
+                            const matchRef = doc(db, Tables.matches, match.eventId);
+                            await setDoc(matchRef, match, { merge: true });
+                        }
+                    });
+                    await Promise.allSettled(savePromises);
+                    
                     console.log("[getMatchs] Returning", sortedMatches.length, "matches from database (HKJC API returned 0, filtered to future matches only)");
                     console.log("[getMatchs] Sample database matches:", sortedMatches.slice(0, 2).map((m: any) => ({ id: m.id || m.eventId, home: m.homeTeamName || 'N/A', away: m.awayTeamName || 'N/A', hasPredictions: !!m.predictions, hasIA: !!m.ia })));
                     if (!res.headersSent) {
@@ -750,6 +799,55 @@ class MatchController {
                         console.log("[getMatchs] Completed calculation for matches needing data");
                     }
                     
+                    // Convert Chinese names to simplified Chinese for matches returned from database
+                    console.log("[getMatchs] Converting team names to Simplified Chinese for", sortedMatches.length, "matches...");
+                    const convertPromises2 = sortedMatches.map(async (match: any) => {
+                        if (match.homeLanguages?.zh && match.homeLanguages.zh.trim() !== "") {
+                            const needsConversion = !match.homeLanguages.zhCN || 
+                                                  match.homeLanguages.zhCN.trim() === "" || 
+                                                  match.homeLanguages.zhCN === match.homeLanguages.zh;
+                            if (needsConversion) {
+                                try {
+                                    const converted = await convertToSimplifiedChinese(match.homeLanguages.zh);
+                                    if (converted && converted.trim() !== "" && converted !== match.homeLanguages.zh) {
+                                        match.homeLanguages.zhCN = converted;
+                                    } else {
+                                        match.homeLanguages.zhCN = match.homeLanguages.zh;
+                                    }
+                                } catch (error) {
+                                    match.homeLanguages.zhCN = match.homeLanguages.zh;
+                                }
+                            }
+                        }
+                        if (match.awayLanguages?.zh && match.awayLanguages.zh.trim() !== "") {
+                            const needsConversion = !match.awayLanguages.zhCN || 
+                                                  match.awayLanguages.zhCN.trim() === "" || 
+                                                  match.awayLanguages.zhCN === match.awayLanguages.zh;
+                            if (needsConversion) {
+                                try {
+                                    const converted = await convertToSimplifiedChinese(match.awayLanguages.zh);
+                                    if (converted && converted.trim() !== "" && converted !== match.awayLanguages.zh) {
+                                        match.awayLanguages.zhCN = converted;
+                                    } else {
+                                        match.awayLanguages.zhCN = match.awayLanguages.zh;
+                                    }
+                                } catch (error) {
+                                    match.awayLanguages.zhCN = match.awayLanguages.zh;
+                                }
+                            }
+                        }
+                    });
+                    await Promise.allSettled(convertPromises2);
+                    
+                    // Save converted names back to database
+                    const savePromises2 = sortedMatches.map(async (match: any) => {
+                        if (match.homeLanguages?.zhCN || match.awayLanguages?.zhCN) {
+                            const matchRef = doc(db, Tables.matches, match.eventId);
+                            await setDoc(matchRef, match, { merge: true });
+                        }
+                    });
+                    await Promise.allSettled(savePromises2);
+                    
                     console.log("[getMatchs] Returning", sortedMatches.length, "matches from database (filtered to future matches only)");
                     console.log("[getMatchs] Sample matches:", sortedMatches.slice(0, 2).map((m: any) => ({ id: m.id || m.eventId, home: m.homeTeamName || 'N/A', away: m.awayTeamName || 'N/A', hasPredictions: !!m.predictions, hasIA: !!m.ia })));
                     if (!res.headersSent) {
@@ -840,12 +938,12 @@ class MatchController {
                     homeLanguages: {
                         en: hkjcMatch.homeTeam?.name_en || "",
                         zh: hkjcMatch.homeTeam?.name_ch || "",
-                        zhCN: hkjcMatch.homeTeam?.name_ch || ""
+                        zhCN: "" // Will be converted to Simplified Chinese below
                     },
                     awayLanguages: {
                         en: hkjcMatch.awayTeam?.name_en || "",
                         zh: hkjcMatch.awayTeam?.name_ch || "",
-                        zhCN: hkjcMatch.awayTeam?.name_ch || ""
+                        zhCN: "" // Will be converted to Simplified Chinese below
                     }
                 } as Match;
                 
@@ -1127,23 +1225,78 @@ class MatchController {
             console.log("[getMatchs] Summary - Matches with predictions:", matchesWithPredictions, ", with IA:", matchesWithIA, "out of", allMatches.length);
 
             // Convert Chinese names to simplified Chinese for all matches
-            const convertPromises = allMatches.map(async (match) => {
-                if (match.homeLanguages?.zh && !match.homeLanguages.zhCN) {
-                    try {
-                        match.homeLanguages.zhCN = await convertToSimplifiedChinese(match.homeLanguages.zh) || match.homeLanguages.zh;
-                    } catch (error) {
-                        match.homeLanguages.zhCN = match.homeLanguages.zh;
+            // Process in batches to avoid API rate limiting
+            console.log("[getMatchs] Starting Simplified Chinese conversion for", allMatches.length, "matches...");
+            let convertedCount = 0;
+            let failedCount = 0;
+            const BATCH_SIZE = 10; // Process 10 matches at a time to avoid rate limiting
+            const DELAY_BETWEEN_BATCHES = 1000; // 1 second delay between batches
+            
+            for (let i = 0; i < allMatches.length; i += BATCH_SIZE) {
+                const batch = allMatches.slice(i, i + BATCH_SIZE);
+                const batchPromises = batch.map(async (match) => {
+                    // Convert home team name to Simplified Chinese
+                    if (match.homeLanguages?.zh && match.homeLanguages.zh.trim() !== "") {
+                        // Always convert if zhCN is missing, empty, or same as zh (meaning it wasn't converted)
+                        const needsConversion = !match.homeLanguages.zhCN || 
+                                              match.homeLanguages.zhCN.trim() === "" || 
+                                              match.homeLanguages.zhCN === match.homeLanguages.zh;
+                        
+                        if (needsConversion) {
+                            try {
+                                const converted = await convertToSimplifiedChinese(match.homeLanguages.zh);
+                                if (converted && converted.trim() !== "" && converted !== match.homeLanguages.zh) {
+                                    match.homeLanguages.zhCN = converted;
+                                    convertedCount++;
+                                } else {
+                                    // Conversion failed or returned same value, use zh as fallback
+                                    match.homeLanguages.zhCN = match.homeLanguages.zh;
+                                    failedCount++;
+                                }
+                            } catch (error) {
+                                console.error(`[getMatchs] ✗ Error converting home team "${match.homeLanguages.zh}":`, error);
+                                match.homeLanguages.zhCN = match.homeLanguages.zh;
+                                failedCount++;
+                            }
+                        }
                     }
-                }
-                if (match.awayLanguages?.zh && !match.awayLanguages.zhCN) {
-                    try {
-                        match.awayLanguages.zhCN = await convertToSimplifiedChinese(match.awayLanguages.zh) || match.awayLanguages.zh;
-                    } catch (error) {
-                        match.awayLanguages.zhCN = match.awayLanguages.zh;
+                    // Convert away team name to Simplified Chinese
+                    if (match.awayLanguages?.zh && match.awayLanguages.zh.trim() !== "") {
+                        // Always convert if zhCN is missing, empty, or same as zh (meaning it wasn't converted)
+                        const needsConversion = !match.awayLanguages.zhCN || 
+                                              match.awayLanguages.zhCN.trim() === "" || 
+                                              match.awayLanguages.zhCN === match.awayLanguages.zh;
+                        
+                        if (needsConversion) {
+                            try {
+                                const converted = await convertToSimplifiedChinese(match.awayLanguages.zh);
+                                if (converted && converted.trim() !== "" && converted !== match.awayLanguages.zh) {
+                                    match.awayLanguages.zhCN = converted;
+                                    convertedCount++;
+                                } else {
+                                    // Conversion failed or returned same value, use zh as fallback
+                                    match.awayLanguages.zhCN = match.awayLanguages.zh;
+                                    failedCount++;
+                                }
+                            } catch (error) {
+                                console.error(`[getMatchs] ✗ Error converting away team "${match.awayLanguages.zh}":`, error);
+                                match.awayLanguages.zhCN = match.awayLanguages.zh;
+                                failedCount++;
+                            }
+                        }
                     }
+                });
+                
+                await Promise.all(batchPromises);
+                
+                // Add delay between batches to avoid rate limiting (except for last batch)
+                if (i + BATCH_SIZE < allMatches.length) {
+                    await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_BATCHES));
                 }
-            });
-            await Promise.all(convertPromises);
+                
+                console.log(`[getMatchs] Conversion progress: ${Math.min(i + BATCH_SIZE, allMatches.length)}/${allMatches.length} matches processed`);
+            }
+            console.log(`[getMatchs] Conversion completed: ${convertedCount} successful, ${failedCount} failed/skipped`);
 
             // Sort matches by kickOff date
             allMatches.sort((a, b) => {
@@ -1153,15 +1306,17 @@ class MatchController {
             });
 
             // Save matches to database - use setDoc with merge to preserve existing fields
-            console.log("[getMatchs] Saving", allMatches.length, "matches to database...");
+            // This includes the converted zhCN values
+            console.log("[getMatchs] Saving", allMatches.length, "matches to database (including converted Simplified Chinese names)...");
             const savePromises = allMatches.map(async (match) => {
                 const matchRef = doc(db, Tables.matches, match.eventId);
                 // Use merge: true to preserve existing fields like predictions and IA
+                // This will also save the converted homeLanguages.zhCN and awayLanguages.zhCN
                 await setDoc(matchRef, match, { merge: true });
             });
             try {
                 await Promise.all(savePromises);
-                console.log("[getMatchs] Successfully saved matches to database (with merge to preserve predictions/IA)");
+                console.log("[getMatchs] Successfully saved matches to database (with merge to preserve predictions/IA and converted zhCN)");
             } catch (error) {
                 console.error("[getMatchs] Error saving matches to database:", error);
             }
