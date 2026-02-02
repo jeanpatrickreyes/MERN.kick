@@ -9,13 +9,12 @@ import Crown from "../../../components/crown";
 import { getTeamNameInCurrentLanguage } from "../../../ultis/languageUtils";
 
 export type Props = {
-    teams: string[]
+    teams?: string[] // Deprecated: team names are now calculated internally from match data
     match: Match
     navigate: NavigateFunction
 };
 
 export function CardMatchComponent({
-    teams,
     navigate,
     match,
 }: Props) {
