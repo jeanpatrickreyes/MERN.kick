@@ -484,23 +484,62 @@ function MembersPage() {
                         helperText={errors.price}
                     />
 
-                    <TextField
-                        label={t("date")}
-                        fullWidth
-                        margin="normal"
-                        type="date"
-                        value={formData.date ?? ""}
-                        onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                        InputLabelProps={{
-                            shrink: true,
-                        }}
-                        inputProps={{
-                            min: new Date().toISOString().split("T")[0]
-                        }}
-                        className="w-full p-3 mt-2 bg-[#f7f7e3] text-black border rounded-md border-[#a855f7] focus:outline-none focus:ring-2 focus:ring-[#a855f7]"
-                        error={Boolean(errors.date)}
-                        helperText={errors.date}
-                    />
+                    <Box sx={{ display: "flex", gap: 2, mt: 2, mb: errors.date ? 0 : 1 }}>
+                        <TextField
+                            label={t("date")}
+                            fullWidth
+                            type="date"
+                            value={formData.date ?? ""}
+                            onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                            InputLabelProps={{
+                                shrink: true,
+                            }}
+                            inputProps={{
+                                min: new Date().toISOString().split("T")[0]
+                            }}
+                            className="bg-[#f7f7e3] text-black border rounded-md border-[#a855f7] focus:outline-none focus:ring-2 focus:ring-[#a855f7]"
+                            error={Boolean(errors.date)}
+                            helperText={errors.date}
+                            sx={{
+                                flex: 1,
+                                "& .MuiInputBase-root": {
+                                    backgroundColor: "#f7f7e3",
+                                },
+                                "& .MuiFormHelperText-root": {
+                                    margin: 0,
+                                    marginTop: "3px",
+                                }
+                            }}
+                        />
+                        <Button
+                            variant="contained"
+                            onClick={() => {
+                                // Set VIP date to 1 year from today
+                                const oneYearFromNow = new Date();
+                                oneYearFromNow.setFullYear(oneYearFromNow.getFullYear() + 1);
+                                const dateString = oneYearFromNow.toISOString().split("T")[0];
+                                setFormData({ ...formData, date: dateString });
+                                // Clear date error if it exists
+                                if (errors.date) {
+                                    setErrors({ ...errors, date: "" });
+                                }
+                            }}
+                            sx={{
+                                backgroundColor: "#fc3a45",
+                                color: "white",
+                                "&:hover": {
+                                    backgroundColor: "#d32f2f",
+                                },
+                                minWidth: "120px",
+                                height: "56px",
+                                alignSelf: "flex-end",
+                                marginBottom: errors.date ? "19px" : "0px",
+                                boxShadow: "0px 2px 4px rgba(0,0,0,0.2)",
+                            }}
+                        >
+                            {t("setVIP") || "Set VIP"}
+                        </Button>
+                    </Box>
 
                     {formData.date && new Date(formData.date) > new Date() && (
                         <div className="flex justify-start mt-4 w-full items-start">

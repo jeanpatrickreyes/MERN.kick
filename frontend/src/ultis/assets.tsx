@@ -29,7 +29,8 @@ const AppAssets = {
     card_img_3: "/assets/card_img_3.png",
     card_img_4: "/assets/card_img_4.png",
     card_img_5: "/assets/card_img_5.png",
-    logo_red: "/assets/logo_red.png"
+    logo_red: "/assets/logo_red.png",
+    lock: "/assets/lock.png"
 }
 
 export default AppAssets;

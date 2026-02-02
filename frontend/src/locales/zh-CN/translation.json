@@ -184,5 +184,6 @@
     "ageRangeRequired": "年龄范围为必填项",
     "analysis": "分析",
     "pay_to_view_analysis": "付费后可查看分析",
-    "time_remaining_until_match": "距离开赛剩余"
+    "time_remaining_until_match": "距离开赛剩余",
+    "setVIP": "设为VIP"
 }
