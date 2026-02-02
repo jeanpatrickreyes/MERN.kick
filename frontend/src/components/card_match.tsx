@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { FaBasketball } from "react-icons/fa6";
 import { NavigateFunction } from "react-router-dom";
 import { Match } from "../models/match";
@@ -6,8 +5,6 @@ import { useTranslation } from "react-i18next";
 import moment from 'moment-timezone';
 import { Probability } from "../models/probability";
 import useIsMobile from "../hooks/useIsMobile";
-import API from "../api/api";
-import AppGlobal from "../ultis/global";
 import Crown from "./crown";
 
 export type Props = {
@@ -27,7 +24,6 @@ export function CardMatch({
 }: Props) {
     const { t } = useTranslation();
     const isMobile = useIsMobile();
-    const [showModal, setShowModal] = useState(false);
 
     const dateStr = match.kickOff;
     moment.locale('zh-hk');
@@ -60,14 +56,9 @@ export function CardMatch({
     const homeWin = match.ia && match.ia.home ? match.ia.home : match.predictions && match.predictions.homeWinRate ? match.predictions.homeWinRate : null;
     const awayWin = match.ia && match.ia.away ? match.ia.away : match.predictions && match.predictions.awayWinRate ? match.predictions.awayWinRate : null;
 
-    const handleClick = async () => {
+    const handleClick = () => {
         if (id) {
-            const res = await API.GET(AppGlobal.baseURL + "user/verify/vip");
-            if (res.status === 200) {
-                navigate("/details-match/" + id);
-            } else {
-                setShowModal(true);
-            }
+            navigate("/details-match/" + id);
         }
     };
 
@@ -132,42 +123,6 @@ export function CardMatch({
                     </div>
                 </div>
             </div>
-
-            {/* Modal VIP */}
-            {showModal && (
-                <div
-                    className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50"
-                    onClick={() => setShowModal(false)}
-                >
-                    <div
-                        className="bg-white p-6 rounded shadow-lg max-w-xs w-full"
-                        onClick={e => e.stopPropagation()}
-                    >
-                        <p className="mb-4 text-center text-black font-semibold">
-                            {t("you_need_to_be_VIP") || "You need to be VIP member to see the analysis."}
-                        </p>
-
-                        <div className="flex justify-end space-x-4">
-                            <button
-                                className="text-black px-4 py-2 bg-gray-300 rounded hover:bg-gray-400 transition"
-                                onClick={() => setShowModal(false)}
-                            >
-                                {t("cancel")}
-                            </button>
-
-                            <button
-                                className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-700 transition"
-                                onClick={() => {
-                                    window.location.href = "/";
-                                    setShowModal(false);
-                                }}
-                            >
-                                {t("Contact_Us")}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
         </>
     );
 }

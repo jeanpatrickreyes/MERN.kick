@@ -179,5 +179,8 @@
     "win_probality": "Win probality",
     "selectAgeRange": "Select age range",
     "ageRange": "Age Range",
-    "ageRangeRequired": "Age Range Required"
+    "ageRangeRequired": "Age Range Required",
+    "analysis": "Analysis",
+    "pay_to_view_analysis": "Pay to view analysis",
+    "time_remaining_until_match": "Time remaining until match starts"
 }

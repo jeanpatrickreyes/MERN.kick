@@ -4,6 +4,7 @@ import { useProbability } from "../../hooks/useProbality";
 import { useNavigate, useParams } from "react-router-dom";
 import LastGameDetailsComponent from "./components/last_games_details";
 import DetailsCardComponent from "./components/details_card";
+import LockedAnalysisCard from "./components/locked_analysis_card";
 import AppColors from "../../ultis/colors";
 import AppAssets from "../../ultis/assets";
 import ThemedText from "../../components/themedText";
@@ -16,6 +17,7 @@ import { useTranslation } from "react-i18next";
 import useAuthStore from "../../store/userAuthStore";
 import HeaderDetailsComponent from "./components/header_details";
 import { getTeamNameInCurrentLanguage } from "../../ultis/languageUtils";
+import { useVIP } from "../../hooks/useVIP";
 
 
 function DetailsMatchPage() {
@@ -27,6 +29,7 @@ function DetailsMatchPage() {
     const [hasGenerated, setHasGenerated] = useState(false);
     const navigate = useNavigate();
     const { userRole } = useAuthStore();
+    const { data: isVIP, isLoading: isLoadingVIP } = useVIP();
 
     useEffect(() => {
         if (!userRole) {
@@ -34,9 +37,9 @@ function DetailsMatchPage() {
         }
     }, [userRole, navigate]);
 
-    // Automatically generate analysis when data loads and doesn't have ia
+    // Automatically generate analysis when data loads and doesn't have ia (only for VIP users)
     useEffect(() => {
-        if (!data || hasGenerated || loadingGenerate || !id) return;
+        if (!data || hasGenerated || loadingGenerate || !id || !isVIP) return;
         
         // If analysis doesn't exist, try to generate it
         if (!data.ia) {
@@ -101,7 +104,7 @@ function DetailsMatchPage() {
                     });
             }
         }
-    }, [data, hasGenerated, loadingGenerate, id, queryClient]);
+    }, [data, hasGenerated, loadingGenerate, id, queryClient, isVIP]);
 
     async function generateIA() {
         if (loadingGenerate || hasGenerated || !id) return;
@@ -158,8 +161,14 @@ function DetailsMatchPage() {
 
                         <HeaderDetailsComponent data={data} />
 
-
-                        {!data.ia && loadingGenerate ?
+                        {/* Show locked cards for non-VIP users */}
+                        {!isLoadingVIP && !isVIP ? (
+                            <>
+                                <LockedAnalysisCard kickOff={data.kickOff} />
+                                <LockedAnalysisCard kickOff={data.kickOff} />
+                                <LockedAnalysisCard kickOff={data.kickOff} />
+                            </>
+                        ) : isVIP && !data.ia && loadingGenerate ?
                             <div style={{ marginTop: 30 }}>
 
                                 <div style={{
@@ -227,9 +236,9 @@ function DetailsMatchPage() {
 
                                     <div style={{ width: "20%", height: 2, backgroundColor: AppColors.primary }} />
                                 </div>
-                            </div> : (data.predictions || data.ia) ?
+                            </div> : isVIP && (data.predictions || data.ia) ?
                                 <DetailsCardComponent probability={data} />
-                                : <div />
+                                : isVIP ? <div /> : null
                         }
 
                         {

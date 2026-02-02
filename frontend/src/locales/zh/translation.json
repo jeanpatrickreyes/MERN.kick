@@ -181,5 +181,8 @@
     "win_probality": "勝率",
     "selectAgeRange": "選擇年齡範圍",
     "ageRange": "年齡範圍",
-    "ageRangeRequired": "所需年齡範圍"
+    "ageRangeRequired": "所需年齡範圍",
+    "analysis": "分析",
+    "pay_to_view_analysis": "付費後可查看分析",
+    "time_remaining_until_match": "距離開賽剩餘"
 }
