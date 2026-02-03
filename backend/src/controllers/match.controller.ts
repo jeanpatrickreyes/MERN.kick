@@ -269,6 +269,7 @@ class MatchController {
         const methodStartTime = Date.now();
         try {
             const refresh = req.query.refresh === 'true';
+            
             console.log("========================================");
             console.log("[getMatchs] Request received");
             console.log("[getMatchs] Refresh parameter:", refresh);
@@ -655,7 +656,32 @@ class MatchController {
 
             // If not refreshing and we have matches in DB, check if HKJC has newer dates
             const dbMatchesArray = Array.from(dbMatchesMap.values());
-            if (!refresh && dbMatchesArray.length > 0) {
+            
+            // Check if cached data is stale (missing critical data)
+            const hasStaleData = dbMatchesArray.some((match: any) => {
+                // Check if missing predictions/IA (needed for crowns)
+                const missingPredictions = !match.predictions || !match.predictions.homeWinRate || !match.predictions.awayWinRate;
+                const missingIA = !match.ia || !match.ia.home || !match.ia.away;
+                // Check if zhCN is not properly converted (needed for language switching)
+                const needsConversion = match.homeLanguages?.zh && 
+                                      (!match.homeLanguages.zhCN || 
+                                       match.homeLanguages.zhCN === match.homeLanguages.zh ||
+                                       match.homeLanguages.zhCN.trim() === "");
+                const awayNeedsConversion = match.awayLanguages?.zh && 
+                                           (!match.awayLanguages.zhCN || 
+                                            match.awayLanguages.zhCN === match.awayLanguages.zh ||
+                                            match.awayLanguages.zhCN.trim() === "");
+                
+                return missingPredictions || missingIA || needsConversion || awayNeedsConversion;
+            });
+            
+            // Force refresh if data is stale (even if refresh param not set)
+            const shouldRefresh = refresh || hasStaleData;
+            if (hasStaleData && !refresh) {
+                console.log("[getMatchs] ⚠ Detected stale data (missing predictions/IA or unconverted zhCN), forcing refresh...");
+            }
+            
+            if (!shouldRefresh && dbMatchesArray.length > 0) {
                 // Get the latest date from database
                 const dbDates = dbMatchesArray.map(m => m.kickOff?.split(' ')[0]).filter(Boolean).sort();
                 const latestDbDate = dbDates[dbDates.length - 1];
