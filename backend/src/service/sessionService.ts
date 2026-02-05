@@ -4,7 +4,7 @@ import { db } from "../firebase/firebase";
 import Tables from "../ultis/tables.ultis";
 
 export class SessionService {
-    static async createSession(userId: string): Promise<string> {
+    static async createSession(userId: string, expirationDays: number = 30): Promise<string> {
         const sessionsRef = collection(db, Tables.sessions);
         const q = query(sessionsRef, where("userId", "==", userId));
         const existingSessions = await getDocs(q);
@@ -13,7 +13,7 @@ export class SessionService {
         );
         await Promise.all(deletePromises);
         const sessionId = uuidv4();
-        const expiresAt = Timestamp.fromDate(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000));
+        const expiresAt = Timestamp.fromDate(new Date(Date.now() + expirationDays * 24 * 60 * 60 * 1000));
         await setDoc(doc(db, Tables.sessions, sessionId), {
             userId: String(userId),
             expiresAt: expiresAt.toMillis(), // Store as milliseconds for easier comparison

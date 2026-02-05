@@ -79,12 +79,14 @@ class UsersController {
                     if (!passwordMatch) {
                         return res.status(401).json({ error: "Invalid password." });
                     }
-                    const sessionId = await SessionService.createSession(userId);
+                    // Admin tokens expire in 7 days
+                    const ADMIN_EXPIRATION_DAYS = 7;
+                    const sessionId = await SessionService.createSession(userId, ADMIN_EXPIRATION_DAYS);
                     res.cookie('sessionId', sessionId, {
                         httpOnly: true,
                         secure: process.env.NODE_ENV === 'production',
                         sameSite: 'lax',
-                        maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
+                        maxAge: ADMIN_EXPIRATION_DAYS * 24 * 60 * 60 * 1000 // 7 days for admin
                     });
                     return res.json({
                         user: {
