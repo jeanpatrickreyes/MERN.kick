@@ -7,6 +7,7 @@ export const API = {
         const _headers = headers ?? {};
         var response: any;
         await axios.post(url, data, {
+            timeout: 15000, // 15 second timeout
             headers: {
                 'Content-Type': 'application/json',
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -38,6 +39,7 @@ export const API = {
         const _headers = headers ?? {};
         var response: any;
         await axios.get(url, {
+            timeout: 15000, // 15 second timeout
             headers: {
                 'Content-type': 'application/json; charset=UTF-8',
                 ..._headers

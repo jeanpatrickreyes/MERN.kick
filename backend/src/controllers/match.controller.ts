@@ -22,6 +22,16 @@ import { HKJC } from "model/hkjc.model";
 import { format } from 'date-fns';
 import { convertToSimplifiedChinese } from "../service/chinese-simplify";
 
+// Timeout wrapper utility
+const withTimeout = <T>(promise: Promise<T>, timeoutMs: number, errorMessage: string): Promise<T> => {
+    return Promise.race([
+        promise,
+        new Promise<T>((_, reject) => 
+            setTimeout(() => reject(new Error(errorMessage)), timeoutMs)
+        )
+    ]);
+};
+
 class MatchController {
     static async getMatchResults() {
         console.log("START....")
@@ -277,13 +287,85 @@ class MatchController {
             console.log("[getMatchs] Request method:", req.method);
             console.log("========================================");
             
-            // Always fetch from HKJC API to check for updates and cleanup old matches
+            // First, check database for cached matches to return quickly
+            console.log("[getMatchs] Checking database for cached matches...");
+            const cachedMatchesCol = collection(db, Tables.matches);
+            const cachedMatchesSnapshot = await getDocs(cachedMatchesCol);
+            const cachedDbMatchesArray = cachedMatchesSnapshot.empty ? [] : cachedMatchesSnapshot.docs.map(doc => {
+                const data = doc.data();
+                return {
+                    id: doc.id,
+                    kickOff: data.kickOff,
+                    ...data
+                };
+            });
+            console.log("[getMatchs] Found", cachedDbMatchesArray.length, "matches in database");
+            
+            // If we have cached matches and not forcing refresh, return them immediately
+            // Then fetch updates in background
+            if (!refresh && cachedDbMatchesArray.length > 0) {
+                // Filter out past matches
+                const now = new Date();
+                const cutoffTime = new Date(now.getTime() - 60 * 60 * 1000); // 1 hour ago
+                const futureMatches = cachedDbMatchesArray.filter((match: any) => {
+                    if (!match.kickOff) return false;
+                    try {
+                        let kickOffTime: Date;
+                        if (match.kickOff.includes('T')) {
+                            kickOffTime = new Date(match.kickOff);
+                        } else {
+                            const normalized = match.kickOff.replace(' ', 'T');
+                            kickOffTime = new Date(normalized);
+                        }
+                        if (isNaN(kickOffTime.getTime())) {
+                            return false;
+                        }
+                        return kickOffTime >= cutoffTime;
+                    } catch (error) {
+                        return false;
+                    }
+                });
+                
+                if (futureMatches.length > 0) {
+                    // Sort by kickOff date
+                    const sortedMatches = futureMatches.sort((a: any, b: any) => {
+                        const dateA = new Date(a.kickOff);
+                        const dateB = new Date(b.kickOff);
+                        return dateA.getTime() - dateB.getTime();
+                    });
+                    
+                    console.log("[getMatchs] Returning", sortedMatches.length, "cached matches immediately");
+                    console.log("[getMatchs] Response time:", Date.now() - methodStartTime, "ms");
+                    
+                    // Return cached data immediately
+                    if (!res.headersSent) {
+                        return res.json(sortedMatches);
+                    } else {
+                        console.warn("[getMatchs] Response already sent, cannot return cached matches");
+                        return;
+                    }
+                }
+            }
+            
+            // If no cached data or refresh requested, fetch from API (with timeout)
             console.log("[getMatchs] ========================================");
-            console.log("[getMatchs] Fetching from HKJC API...");
+            console.log("[getMatchs] Fetching from HKJC API (with 20s timeout)...");
             const hkjcStartTime = Date.now();
-            const hkjc: HKJC[] = await ApiHKJC();
-            const hkjcDuration = Date.now() - hkjcStartTime;
-            console.log("[getMatchs] HKJC API returned", hkjc.length, "matches in", hkjcDuration + "ms");
+            let hkjc: HKJC[] = [];
+            try {
+                hkjc = await withTimeout(
+                    ApiHKJC(),
+                    20000, // 20 second timeout
+                    "HKJC API request timed out after 20 seconds"
+                );
+                const hkjcDuration = Date.now() - hkjcStartTime;
+                console.log("[getMatchs] HKJC API returned", hkjc.length, "matches in", hkjcDuration + "ms");
+            } catch (error) {
+                const hkjcDuration = Date.now() - hkjcStartTime;
+                console.error("[getMatchs] HKJC API error or timeout after", hkjcDuration + "ms:", error);
+                // Continue with empty array - will fall back to database
+                hkjc = [];
+            }
             
             // Log detailed date information from HKJC API
             if (hkjc.length > 0) {
