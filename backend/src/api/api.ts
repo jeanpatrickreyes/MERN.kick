@@ -3,11 +3,13 @@ import axios, { AxiosError, AxiosResponse } from "axios";
 export const API = {
 
 
-    async POST(url: string, data: any, headers?: any): Promise<AxiosResponse<any, any>> {
-        const _headers = headers ?? {};
+    async POST(url: string, data: any, opts?: { headers?: any; timeout?: number } | any): Promise<AxiosResponse<any, any>> {
+        const isOpts = opts && typeof opts === "object" && "timeout" in opts;
+        const timeoutMs = (isOpts && typeof (opts as any).timeout === "number") ? (opts as any).timeout : 15000;
+        const _headers = isOpts ? ((opts as any).headers ?? {}) : (opts ?? {});
         var response: any;
         await axios.post(url, data, {
-            timeout: 15000, // 15 second timeout
+            timeout: timeoutMs,
             headers: {
                 'Content-Type': 'application/json',
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -21,12 +23,12 @@ export const API = {
         ).then((res) => {
             response = res;
         }).catch((error: AxiosError) => {
-            if (axios.isCancel(error)) {
-                error.status = 408;
-                console.log('Request timed out');
+            const isTimeout = axios.isCancel(error) || (error as any).code === "ECONNABORTED" || String((error as any).message || "").includes("timeout");
+            if (isTimeout) {
+                console.warn("[API] Request timed out:", url);
             }
             response = error.response || {
-                status: error.status || 500,
+                status: isTimeout ? 408 : (error.status ?? 500),
                 data: error.message,
                 headers: {},
                 config: {},
@@ -48,12 +50,10 @@ export const API = {
         ).then((res) => {
             response = res;
         }).catch((error: AxiosError) => {
-            if (axios.isCancel(error)) {
-                error.status = 408;
-                console.log('Request timed out');
-            }
+            const isTimeout = axios.isCancel(error) || (error as any).code === "ECONNABORTED" || String((error as any).message || "").includes("timeout");
+            if (isTimeout) console.warn("[API] Request timed out:", url);
             response = error.response || {
-                status: error.status || 500,
+                status: isTimeout ? 408 : (error.status ?? 500),
                 data: error.message,
                 headers: {},
                 config: {},

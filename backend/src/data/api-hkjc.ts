@@ -17,11 +17,21 @@ export const ApiHKJC = async (): Promise<HKJC[]> => {
         };
         
         console.log("[ApiHKJC] Request payload:", JSON.stringify(queryWithDates, null, 2));
-        const res = await API.POST("https://info.cld.hkjc.com/graphql/base/", queryWithDates);
-        
+        const hkjcTimeoutMs = Number(process.env.HKJC_API_TIMEOUT_MS) || 25000;
+        let res = await API.POST("https://info.cld.hkjc.com/graphql/base/", queryWithDates, { timeout: hkjcTimeoutMs });
+        const isRetryable = res.status === 408 || (res.status === 500 && typeof res.data === "string" && res.data.includes("timeout"));
+        if (isRetryable) {
+            console.warn("[ApiHKJC] First attempt failed (timeout). Retrying once in 2s...");
+            await new Promise(r => setTimeout(r, 2000));
+            res = await API.POST("https://info.cld.hkjc.com/graphql/base/", queryWithDates, { timeout: hkjcTimeoutMs });
+        }
         console.log("[ApiHKJC] Response status:", res.status);
         console.log("[ApiHKJC] Response data keys:", res.data ? Object.keys(res.data) : 'no data');
         
+        if (res.status === 408 || (res.status === 500 && typeof res.data === "string" && res.data.includes("timeout"))) {
+            console.warn("[ApiHKJC] Request timed out (15s). HKJC API may be slow; consider increasing timeout or retrying later.");
+            return [];
+        }
         if (res.status == 200) {
             // Check response structure
             if (res.data && res.data.data) {
@@ -54,8 +64,8 @@ export const ApiHKJC = async (): Promise<HKJC[]> => {
                 return [];
             }
         }
-        console.warn("[ApiHKJC] API returned status", res.status);
-        console.warn("[ApiHKJC] Response data:", res.data ? JSON.stringify(res.data, null, 2).substring(0, 1000) : 'no data');
+        console.warn("[ApiHKJC] API returned status", res.status, res.status === 500 ? "(may be timeout or HKJC server error)" : "");
+        console.warn("[ApiHKJC] Response data:", res.data != null ? (typeof res.data === "string" ? res.data : JSON.stringify(res.data).substring(0, 1000)) : "no data");
         return [];
     } catch (error) {
         console.error("[ApiHKJC] Error fetching matches:", error);

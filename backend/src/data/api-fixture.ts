@@ -42,8 +42,13 @@ export const ApiFixtureByDate = async (date: string): Promise<Fixture[] | undefi
             });
         }
         return fixtures;
-    } catch (error) {
-        console.error(`Error fetching data for date ${date}: ${error}`);
+    } catch (error: any) {
+        const status = error.response?.status;
+        const data = error.response?.data;
+        console.error(`Error fetching data for date ${date}: status=${status ?? 'N/A'}`, data ?? error.message);
+        if (status === 403) {
+            console.error('[api-fixture] 403 Forbidden: check KEY_API (api-sports.io), quota, and server IP allowlist.');
+        }
         return []; // Return empty array instead of undefined
     }
 };

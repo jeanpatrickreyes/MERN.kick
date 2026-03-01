@@ -40,7 +40,9 @@ Response:
         const content = response.data.choices[0].message.content.trim();
         return content.replace(/^["']|["']$/g, '').trim();
     } catch (error: any) {
-        console.error("Erro a :", traditionalName, error.message);
+        const status = error.response?.status;
+        const data = error.response?.data;
+        console.error("[chinese-simplify] Failed for:", traditionalName, "| status:", status ?? "N/A", "|", typeof data === "string" ? data : JSON.stringify(data ?? error.message).slice(0, 200));
         return traditionalName;
     }
 }
