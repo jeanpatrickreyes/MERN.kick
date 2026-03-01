@@ -4,6 +4,7 @@ import cors from 'cors';
 import { matchRouter } from './routes/match.routes';
 import cron from 'node-cron';
 import path from 'path';
+import fs from 'fs';
 import MatchController from './controllers/match.controller';
 import { usersRouter } from './routes/users.routes';
 import { adminRouter } from './routes/admin.routes';
@@ -69,9 +70,15 @@ app.use('/api', (req, res, next) => {
 app.use(express.json());
 
 // Static files with proper cache control
-// Hashed files (JS, CSS) can be cached for 1 year, index.html should not be cached
-const frontendDistPath = path.join(__dirname, "../../frontend/dist");
+// Use FRONTEND_DIST_PATH if set (e.g. /root/dopehkai/frontend/dist), else relative to backend/dist
+const frontendDistPath = process.env.FRONTEND_DIST_PATH
+    ? path.resolve(process.env.FRONTEND_DIST_PATH)
+    : path.join(__dirname, "../../frontend/dist");
 console.log(`[SERVER] Serving static files from: ${frontendDistPath}`);
+const indexPath = path.join(frontendDistPath, "index.html");
+if (!fs.existsSync(indexPath)) {
+    console.warn(`[SERVER] WARNING: index.html not found at ${indexPath}. Frontend may not load. Build frontend and set FRONTEND_DIST_PATH if needed.`);
+}
 app.use(express.static(frontendDistPath, {
     maxAge: '1y',
     etag: true,
@@ -95,7 +102,7 @@ app.use("/api/records", recordsRouter);
 app.use("/api/config", configRouter);
 
 app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, "../../frontend/dist/index.html"));
+    res.sendFile(path.join(frontendDistPath, "index.html"));
 });
 
 cron.schedule('0 0 * * *', () => {
@@ -104,7 +111,7 @@ cron.schedule('0 0 * * *', () => {
 });
 
 
-app.listen(PORT, () => {
-    //  MatchController.getMatchResults();
-    console.log(`🚀 Server is running on http://localhost:${PORT}`);
+const HOST = process.env.HOST || '0.0.0.0';
+app.listen(Number(PORT), HOST, () => {
+    console.log(`🚀 Server is running on http://${HOST}:${PORT}`);
 });
