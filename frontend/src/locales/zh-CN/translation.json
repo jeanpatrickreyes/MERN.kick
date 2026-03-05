@@ -1,5 +1,7 @@
 {
     "all": "全部",
+    "refresh": "刷新",
+    "refreshing": "刷新中...",
     "generateStats": "生成统计数据",
     "jan": "一月",
     "feb": "二月",

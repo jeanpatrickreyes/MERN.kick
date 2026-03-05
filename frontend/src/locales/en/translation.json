@@ -1,5 +1,7 @@
 {
     "all": "All",
+    "refresh": "Refresh",
+    "refreshing": "Refreshing...",
     "generateStats": "Generate statistics",
     "jan": "jan",
     "feb": "feb",

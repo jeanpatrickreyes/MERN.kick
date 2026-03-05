@@ -20,9 +20,17 @@ function MatchsPage() {
     const [days, setDays] = useState<string[]>([]);
     const [matchs, setMatchs] = useState<Match[]>([]);
     const [selectedDay, setSelectedDay] = useState<string>();
+    const [doRefresh, setDoRefresh] = useState(false);
     const { userRole } = useAuthStore();
 
-    const { data, isLoading, error } = useMatchs();
+    const { data, isLoading, error, isFetching } = useMatchs(undefined, undefined, doRefresh);
+
+    // After refresh completes, stop passing refresh so next load uses cache
+    useEffect(() => {
+        if (doRefresh && data != null && !isFetching) {
+            setDoRefresh(false);
+        }
+    }, [doRefresh, data, isFetching]);
 
     useEffect(() => {
         if (!data) return;
@@ -216,6 +224,17 @@ function MatchsPage() {
                                     </ThemedText>
                                 </div>
                             ))}
+                            <button
+                                type="button"
+                                onClick={() => setDoRefresh(true)}
+                                disabled={isFetching}
+                                className="p-4 rounded cursor-pointer transform transition-transform duration-300 hover:scale-105 text-white disabled:opacity-60"
+                                style={{ backgroundColor: AppColors.primary }}
+                            >
+                                <ThemedText type="subtitle" className="text-[10px] sm:text-sm text-white" colorText="white">
+                                    {isFetching && doRefresh ? t("refreshing") || "Refreshing..." : t("refresh") || "Refresh"}
+                                </ThemedText>
+                            </button>
                         </div>
                     </div>
 

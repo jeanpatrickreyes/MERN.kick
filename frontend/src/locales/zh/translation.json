@@ -1,5 +1,7 @@
 {
     "all": "全部",
+    "refresh": "重新整理",
+    "refreshing": "重新整理中...",
     "generateStats": "產生統計數據",
     "jan": "一月",
     "feb": "二月",

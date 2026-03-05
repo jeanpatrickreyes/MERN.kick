@@ -301,33 +301,45 @@ class MatchController {
             });
             console.log("[getMatchs] Found", cachedDbMatchesArray.length, "matches in database");
             
-            // If we have cached matches and not forcing refresh, return them immediately
-            // Then fetch updates in background. Return all cached matches (no future-only filter)
-            // so production shows the same list as in DB; frontend can filter by date.
+            // If we have cached matches and not forcing refresh, return them only when cache is not stale.
+            // Stale = latest match date is before today (UTC), so production won't show only past dates.
             if (!refresh && cachedDbMatchesArray.length > 0) {
-                // Sort by kickOff date (matches without kickOff go to end)
-                const sortedMatches = [...cachedDbMatchesArray].sort((a: any, b: any) => {
-                    const getTime = (m: any) => {
-                        if (!m?.kickOff) return Infinity;
-                        try {
-                            const str = m.kickOff.includes('T') ? m.kickOff : m.kickOff.replace(' ', 'T');
-                            const t = new Date(str).getTime();
-                            return isNaN(t) ? Infinity : t;
-                        } catch {
-                            return Infinity;
-                        }
-                    };
-                    return getTime(a) - getTime(b);
-                });
+                const todayUtc = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+                const latestMatchDate = cachedDbMatchesArray.reduce<string | null>((latest, m: any) => {
+                    if (!m?.kickOff) return latest;
+                    const dateStr = m.kickOff.includes('T') ? m.kickOff.split('T')[0] : (m.kickOff.split(' ')[0] || '');
+                    if (!dateStr || dateStr.length < 10) return latest;
+                    if (!latest || dateStr > latest) return dateStr;
+                    return latest;
+                }, null);
+                const cacheIsStale = latestMatchDate != null && latestMatchDate < todayUtc;
+                if (cacheIsStale) {
+                    console.log("[getMatchs] Cache is stale (latest match date", latestMatchDate, "< today", todayUtc, "). Fetching from API...");
+                } else {
+                    // Sort by kickOff date (matches without kickOff go to end)
+                    const sortedMatches = [...cachedDbMatchesArray].sort((a: any, b: any) => {
+                        const getTime = (m: any) => {
+                            if (!m?.kickOff) return Infinity;
+                            try {
+                                const str = m.kickOff.includes('T') ? m.kickOff : m.kickOff.replace(' ', 'T');
+                                const t = new Date(str).getTime();
+                                return isNaN(t) ? Infinity : t;
+                            } catch {
+                                return Infinity;
+                            }
+                        };
+                        return getTime(a) - getTime(b);
+                    });
 
-                console.log("[getMatchs] Returning", sortedMatches.length, "cached matches immediately");
-                console.log("[getMatchs] Response time:", Date.now() - methodStartTime, "ms");
+                    console.log("[getMatchs] Returning", sortedMatches.length, "cached matches immediately");
+                    console.log("[getMatchs] Response time:", Date.now() - methodStartTime, "ms");
 
-                if (!res.headersSent) {
-                    return res.json(sortedMatches);
+                    if (!res.headersSent) {
+                        return res.json(sortedMatches);
+                    }
+                    console.warn("[getMatchs] Response already sent, cannot return cached matches");
+                    return;
                 }
-                console.warn("[getMatchs] Response already sent, cannot return cached matches");
-                return;
             }
             
             // If no cached data or refresh requested, fetch from API (with timeout)
