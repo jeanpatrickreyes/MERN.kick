@@ -302,49 +302,32 @@ class MatchController {
             console.log("[getMatchs] Found", cachedDbMatchesArray.length, "matches in database");
             
             // If we have cached matches and not forcing refresh, return them immediately
-            // Then fetch updates in background
+            // Then fetch updates in background. Return all cached matches (no future-only filter)
+            // so production shows the same list as in DB; frontend can filter by date.
             if (!refresh && cachedDbMatchesArray.length > 0) {
-                // Filter out past matches
-                const now = new Date();
-                const cutoffTime = new Date(now.getTime() - 60 * 60 * 1000); // 1 hour ago
-                const futureMatches = cachedDbMatchesArray.filter((match: any) => {
-                    if (!match.kickOff) return false;
-                    try {
-                        let kickOffTime: Date;
-                        if (match.kickOff.includes('T')) {
-                            kickOffTime = new Date(match.kickOff);
-                        } else {
-                            const normalized = match.kickOff.replace(' ', 'T');
-                            kickOffTime = new Date(normalized);
+                // Sort by kickOff date (matches without kickOff go to end)
+                const sortedMatches = [...cachedDbMatchesArray].sort((a: any, b: any) => {
+                    const getTime = (m: any) => {
+                        if (!m?.kickOff) return Infinity;
+                        try {
+                            const str = m.kickOff.includes('T') ? m.kickOff : m.kickOff.replace(' ', 'T');
+                            const t = new Date(str).getTime();
+                            return isNaN(t) ? Infinity : t;
+                        } catch {
+                            return Infinity;
                         }
-                        if (isNaN(kickOffTime.getTime())) {
-                            return false;
-                        }
-                        return kickOffTime >= cutoffTime;
-                    } catch (error) {
-                        return false;
-                    }
+                    };
+                    return getTime(a) - getTime(b);
                 });
-                
-                if (futureMatches.length > 0) {
-                    // Sort by kickOff date
-                    const sortedMatches = futureMatches.sort((a: any, b: any) => {
-                        const dateA = new Date(a.kickOff);
-                        const dateB = new Date(b.kickOff);
-                        return dateA.getTime() - dateB.getTime();
-                    });
-                    
-                    console.log("[getMatchs] Returning", sortedMatches.length, "cached matches immediately");
-                    console.log("[getMatchs] Response time:", Date.now() - methodStartTime, "ms");
-                    
-                    // Return cached data immediately
-                    if (!res.headersSent) {
-                        return res.json(sortedMatches);
-                    } else {
-                        console.warn("[getMatchs] Response already sent, cannot return cached matches");
-                        return;
-                    }
+
+                console.log("[getMatchs] Returning", sortedMatches.length, "cached matches immediately");
+                console.log("[getMatchs] Response time:", Date.now() - methodStartTime, "ms");
+
+                if (!res.headersSent) {
+                    return res.json(sortedMatches);
                 }
+                console.warn("[getMatchs] Response already sent, cannot return cached matches");
+                return;
             }
             
             // If no cached data or refresh requested, fetch from API (with timeout)
