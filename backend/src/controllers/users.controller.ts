@@ -85,12 +85,14 @@ class UsersController {
                         path: '/',
                         maxAge: 365 * 24 * 60 * 60 * 1000 // 365 days for admin
                     });
+                    const role = userData.role || 'admin';
                     return res.json({
                         user: {
                             id: userId,
                             email: userData.email,
-                            role: userData.role || 'admin'
+                            role
                         },
+                        role,
                         sessionId
                     });
                 } else {
@@ -113,6 +115,7 @@ class UsersController {
                             email: userData.email,
                             role: 'member'
                         },
+                        role: 'member',
                         sessionId
                     });
                 }
