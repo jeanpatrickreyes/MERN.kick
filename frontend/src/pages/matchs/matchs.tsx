@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import AppBarCompoonent from "../../components/appBar";
 import ThemedText from "../../components/themedText";
 import AppColors from "../../ultis/colors";
@@ -19,11 +19,49 @@ function MatchsPage() {
     const navigate = useNavigate();
     const [days, setDays] = useState<string[]>([]);
     const [matchs, setMatchs] = useState<Match[]>([]);
-    const [selectedDay, setSelectedDay] = useState<string>();
+    const [selectedDay, setSelectedDay] = useState<string | undefined>(() => {
+        return sessionStorage.getItem('matchs_selectedDay') || undefined;
+    });
     const [doRefresh, setDoRefresh] = useState(false);
     const { userRole } = useAuthStore();
 
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
     const { data, isLoading, error, isFetching } = useMatchs(undefined, undefined, doRefresh);
+
+    // Persist selected day filter
+    useEffect(() => {
+        if (selectedDay) {
+            sessionStorage.setItem('matchs_selectedDay', selectedDay);
+        } else {
+            sessionStorage.removeItem('matchs_selectedDay');
+        }
+    }, [selectedDay]);
+
+    // Save scroll position before navigating away
+    useEffect(() => {
+        const container = scrollContainerRef.current;
+        if (!container) return;
+        const handleScroll = () => {
+            sessionStorage.setItem('matchs_scroll', String(container.scrollTop));
+        };
+        container.addEventListener('scroll', handleScroll);
+        return () => container.removeEventListener('scroll', handleScroll);
+    }, [isLoading]);
+
+    // Restore scroll position when matches are loaded
+    useEffect(() => {
+        if (!matchs.length) return;
+        const saved = sessionStorage.getItem('matchs_scroll');
+        if (saved) {
+            const container = scrollContainerRef.current;
+            if (container) {
+                // Small delay to ensure DOM is rendered
+                requestAnimationFrame(() => {
+                    container.scrollTop = Number(saved);
+                });
+            }
+        }
+    }, [matchs]);
 
     // After refresh completes, stop passing refresh so next load uses cache
     useEffect(() => {
@@ -152,7 +190,7 @@ function MatchsPage() {
             : isLoading
                 ?
                 <Loading />
-                : <div className="overflow-x-hidden h-screen">
+                : <div ref={scrollContainerRef} className="overflow-x-hidden h-screen overflow-y-auto">
 
 
                     <div className="absolute inset-0 w-full h-full z-[-1]">
