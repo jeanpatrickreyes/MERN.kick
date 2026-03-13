@@ -16,7 +16,7 @@ import { ApiTopScoreInjured } from "../data/api-topscore-injured";
 import { IaProbality } from "../service/ia_probability";
 import { GetFixture } from "../service/getFixture";
 import ExcelJS from 'exceljs';
-import { ApiHKJC, ApiHKJCMatchList, ApiHKJCMatchById } from "../data/api-hkjc";
+import { ApiHKJC, ApiHKJCMatchList, ApiHKJCMatchById, ApiHKJCMatchListHAD } from "../data/api-hkjc";
 import { FootyLogicRecentForm } from "model/footylogic_recentform.model";
 import { HKJC } from "model/hkjc.model";
 import { extractHKJCMarkets } from "../service/hkjcMarkets";
@@ -411,6 +411,32 @@ class MatchController {
 
             const futureMatches = list.sort((a: any, b: any) => new Date(a.kickOff).getTime() - new Date(b.kickOff).getTime());
             futureMatches.forEach(fillListIAFromPredictions);
+
+            // Fill ia from HKJC HAD (1X2) odds for matches still missing ia
+            const needsIA = futureMatches.some((m: any) => !m.ia || m.ia.home == null);
+            if (needsIA) {
+                try {
+                    const hadMatches = await ApiHKJCMatchListHAD();
+                    const hadMap = new Map<string, any>();
+                    hadMatches.forEach((h) => {
+                        if (h.id) hadMap.set(h.id, extractHKJCMarkets(h));
+                    });
+                    for (const m of futureMatches) {
+                        if (m.ia && m.ia.home != null && m.ia.away != null) continue;
+                        const markets = hadMap.get(m.id);
+                        if (markets?.hadHomePct && markets?.hadAwayPct) {
+                            const h = parseFloat(markets.hadHomePct);
+                            const a = parseFloat(markets.hadAwayPct);
+                            const total = h + a;
+                            if (total > 0) {
+                                m.ia = { home: (h / total) * 100, away: (a / total) * 100, draw: 0 };
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.warn("[getMatchs] HAD odds fetch failed, crowns may not show:", (e as Error)?.message);
+                }
+            }
 
             // Fetch logos for matches that don't have them (api-sports.io via GetFixture), like topx-betting-mern
             const listWithLogos = await fetchLogosForList(futureMatches);

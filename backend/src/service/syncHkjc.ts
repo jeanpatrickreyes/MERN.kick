@@ -3,13 +3,14 @@
  * Called on website load and every 5 minutes.
  * Only updates match list (id, kickOff, teams, etc.); does not compute predictions or IA.
  */
-import { ApiHKJCMatchList } from "../data/api-hkjc";
+import { ApiHKJCMatchList, ApiHKJCMatchListHAD } from "../data/api-hkjc";
 import { HKJC } from "../model/hkjc.model";
 import { Match } from "../model/match.model";
 import { collection, deleteDoc, doc, getDoc, getDocs, setDoc } from "../database/db";
 import { db } from "../firebase/firebase";
 import Tables from "../ultis/tables.ultis";
 import { cacheDel, CacheKeys } from "../cache/redis";
+import { extractHKJCMarkets } from "./hkjcMarkets";
 
 export async function syncHkjcToMatches(): Promise<void> {
   try {
@@ -86,6 +87,30 @@ export async function syncHkjcToMatches(): Promise<void> {
     }
 
     console.log("[syncHkjc] Synced", hkjc.length, "matches to DB");
+
+    // Also fetch HAD (1X2) odds and store implied percentages so analysis worker
+    // can compute ia even when Gemini is unavailable
+    try {
+      const hadMatches = await ApiHKJCMatchListHAD();
+      let hadUpdated = 0;
+      for (const h of hadMatches) {
+        if (!h.id) continue;
+        const markets = extractHKJCMarkets(h);
+        if (markets.hadHomePct && markets.hadAwayPct) {
+          const matchRef = doc(db, Tables.matches, h.id);
+          await setDoc(matchRef, {
+            hadHomePct: markets.hadHomePct,
+            hadDrawPct: markets.hadDrawPct || "0",
+            hadAwayPct: markets.hadAwayPct,
+          }, { merge: true });
+          hadUpdated++;
+        }
+      }
+      if (hadUpdated > 0) console.log("[syncHkjc] Updated HAD odds for", hadUpdated, "matches");
+    } catch (e) {
+      console.warn("[syncHkjc] HAD odds fetch failed (non-critical):", (e as Error)?.message);
+    }
+
     await cacheDel(CacheKeys.matchesList(false));
     await cacheDel(CacheKeys.matchesList(true));
   } catch (err) {

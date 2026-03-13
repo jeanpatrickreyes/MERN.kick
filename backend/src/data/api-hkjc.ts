@@ -49,6 +49,17 @@ export async function ApiHKJCMatchById(matchId: string): Promise<HKJC | null> {
     }
 }
 
+/** Fetch HAD (1X2) odds only – lightweight call for computing implied win probabilities. */
+export const ApiHKJCMatchListHAD = async (): Promise<HKJC[]> => {
+    try {
+        const matches = await queryHKJC(["HAD"]);
+        return matches;
+    } catch (error) {
+        console.warn("[ApiHKJCMatchListHAD] Error:", error);
+        return [];
+    }
+};
+
 /** Match list for website/sync: HDC only = same as HKJC handicap page (e.g. 32 matches, 26th/27th). */
 export const ApiHKJCMatchList = async (): Promise<HKJC[]> => {
     try {

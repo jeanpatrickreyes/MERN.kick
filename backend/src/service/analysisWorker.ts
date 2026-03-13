@@ -179,8 +179,22 @@ export async function runAnalysisBatch(): Promise<{
         if (fallback) {
           ia = fallback;
         } else {
-          console.warn("[analysisWorker] No Gemini result and no predictions/had for", m.matchId, m.home, "vs", m.away, "- skipping update (no 50/50)");
-          continue;
+          // Try HKJC HAD odds from hkjcMap as last resort
+          const markets = hkjcMap.get(m.matchId);
+          if (markets?.hadHomePct && markets?.hadAwayPct) {
+            const h = parseFloat(markets.hadHomePct);
+            const a = parseFloat(markets.hadAwayPct);
+            const total = h + a;
+            if (total > 0) {
+              ia = { home: (h / total) * 100, away: (a / total) * 100, draw: 0 };
+            } else {
+              console.warn("[analysisWorker] No Gemini/predictions/HAD for", m.matchId, m.home, "vs", m.away, "- skipping");
+              continue;
+            }
+          } else {
+            console.warn("[analysisWorker] No Gemini/predictions/HAD for", m.matchId, m.home, "vs", m.away, "- skipping");
+            continue;
+          }
         }
       }
       const matchRef = doc(db, Tables.matches, m.matchId);
