@@ -55,18 +55,15 @@ export default function HomePage() {
     useEffect(() => {
         const lang =
             languages.find(l => l.code === i18n.language) || languages[0];
-
         setCurrentLang(lang);
 
-        const interval = setInterval(() => {
-            const lang =
-                languages.find(l => l.code === i18n.language) || languages[0];
-
+        const onLangChanged = () => {
+            const lang = languages.find(l => l.code === i18n.language) || languages[0];
             setCurrentLang(lang);
-        }, 1000);
-
-        return () => clearInterval(interval);
-    }, [i18n.language]);
+        };
+        i18n.on('languageChanged', onLangChanged);
+        return () => { i18n.off('languageChanged', onLangChanged); };
+    }, []);
 
     const handleWeChatClick = () => {
         if (admin) {

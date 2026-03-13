@@ -15,6 +15,7 @@ export const API = {
                 'Referer': 'https://bet.hkjc.com/',
                 ..._headers
             },
+            timeout: 30000,
         }
         ).then((res) => {
             response = res;
@@ -41,6 +42,7 @@ export const API = {
                 'Content-type': 'application/json; charset=UTF-8',
                 ..._headers
             },
+            timeout: 30000,
         }
         ).then((res) => {
             response = res;

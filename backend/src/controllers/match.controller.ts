@@ -441,8 +441,8 @@ class MatchController {
             // Fetch logos for matches that don't have them (api-sports.io via GetFixture), like topx-betting-mern
             const listWithLogos = await fetchLogosForList(futureMatches);
 
-            // Short TTL (60s) so list stays in sync with HKJC; avoids stale "extra" dates from Redis
-            await cacheSet(CacheKeys.matchesList(refresh), listWithLogos, 60);
+            // Cache for 3 minutes - balances freshness with performance
+            await cacheSet(CacheKeys.matchesList(refresh), listWithLogos, 180);
             if (!res.headersSent) return res.json(listWithLogos);
         } catch (error) {
             if (!res.headersSent) {

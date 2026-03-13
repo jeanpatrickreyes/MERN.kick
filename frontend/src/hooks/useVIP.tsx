@@ -9,8 +9,9 @@ export const useVIP = (): UseQueryResult<boolean, Error> => {
             const res = await API.GET(AppGlobal.baseURL + "user/verify/vip");
             return res.status === 200;
         },
-        staleTime: 5 * 60 * 1000, // Cache for 5 minutes
-        refetchOnMount: true,
+        staleTime: 10 * 60 * 1000, // Cache for 10 minutes - VIP status rarely changes
+        refetchOnMount: false,
+        refetchOnWindowFocus: false,
     });
 };
 

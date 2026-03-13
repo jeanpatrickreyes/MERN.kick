@@ -24,6 +24,7 @@ export const ApiFixtureByDate = async (date: string): Promise<Fixture[] | undefi
             "x-rapidapi-host": "v3.football.api-sports.io",
             "x-rapidapi-key": key,
         },
+        timeout: 30000,
     };
     try {
         const response = await axios(options);

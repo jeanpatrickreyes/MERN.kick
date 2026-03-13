@@ -68,13 +68,19 @@ export async function generateText(
   }
 
   if (!gemini) throw new Error("Gemini client not initialized");
-  const response = await gemini.models.generateContent({
-    model: GEMINI_MODEL,
-    contents: prompt,
-    config: {
-      systemInstruction: systemInstruction || undefined,
-      temperature,
-    },
-  });
+  const timeoutMs = 120000;
+  const response = await Promise.race([
+    gemini.models.generateContent({
+      model: GEMINI_MODEL,
+      contents: prompt,
+      config: {
+        systemInstruction: systemInstruction || undefined,
+        temperature,
+      },
+    }),
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Gemini API timeout after 120s")), timeoutMs)
+    ),
+  ]);
   return response.text ?? "";
 }

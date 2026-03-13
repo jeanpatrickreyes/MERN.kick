@@ -13,6 +13,10 @@ export const useMatchsHome = (
       const res = await API.GET(
         AppGlobal.baseURL + "home/matchs");
       if (res.status === 200 && res.data) return res.data;
-    }
+      return [];
+    },
+    staleTime: 2 * 60 * 1000,
+    gcTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 };
