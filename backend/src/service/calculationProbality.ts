@@ -46,10 +46,30 @@ export function CalculationProbality(
   homeWinRate = Math.max(0, Math.min(homeWinRate, 93));
   awayWinRate = Math.max(0, Math.min(awayWinRate, 93));
 
+  const total = homeWinRate + awayWinRate;
+  if (total > 0) {
+    homeWinRate = (homeWinRate / total) * 100;
+    awayWinRate = (awayWinRate / total) * 100;
+  } else {
+    homeWinRate = 50;
+    awayWinRate = 50;
+  }
+
+  homeWinRate = Math.max(0, Math.min(100, homeWinRate));
+  awayWinRate = Math.max(0, Math.min(100, awayWinRate));
+
+  const finalTotal = homeWinRate + awayWinRate;
+  if (Math.abs(finalTotal - 100) > 0.01) {
+    if (homeWinRate >= awayWinRate) {
+      homeWinRate = 100 - awayWinRate;
+    } else {
+      awayWinRate = 100 - homeWinRate;
+    }
+  }
 
   return {
     home: parseFloat(homeWinRate.toFixed(2)),
     away: parseFloat(awayWinRate.toFixed(2)),
-    draw: parseFloat(Math.abs(homeWinRate - awayWinRate).toFixed(2))
+    draw: parseFloat((100 - homeWinRate - awayWinRate).toFixed(2))
   };
 }

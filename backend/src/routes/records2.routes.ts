@@ -44,34 +44,34 @@ const upload = multer({
     }
 });
 
-const recordsRouter = Router();
+const records2Router = Router();
 
-recordsRouter.post('/',
+records2Router.post('/',
     authenticateAdmin,
     upload.array('media'), async (req: Request, res: Response) => {
-        req.body.table = "records";
+        req.body.table = "records2";
         await RecordController.createRecord(req, res);
     });
 
-recordsRouter.get('/', async (req: Request, res: Response) => {
-    req.query.table = "records";
+records2Router.get('/', async (req: Request, res: Response) => {
+    req.query.table = "records2";
     await RecordController.record(req, res);
 });
 
-recordsRouter.post(
+records2Router.post(
     "/:id",
     authenticateAdmin,
     upload.array('media'), async (req: Request, res: Response) => {
-        req.body.table = "records";
+        req.body.table = "records2";
         await RecordController.updateRecord(req, res);
     });
 
-recordsRouter.delete(
+records2Router.delete(
     "/:id",
     authenticateAdmin,
     upload.array('media'), async (req: Request, res: Response) => {
-        req.query.table = "records";
+        req.query.table = "records2";
         await RecordController.deleteRecord(req, res);
     });
 
-export { recordsRouter };
+export { records2Router };

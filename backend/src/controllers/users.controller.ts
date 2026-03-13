@@ -19,9 +19,9 @@ class UsersController {
             let userId: string | undefined;
             // Normalize email to lowercase for comparison
             const normalizedEmail = email.toLowerCase().trim();
-            
+
             console.log("[Login] Searching for email:", normalizedEmail);
-            
+
             const membersRefAdmin = collection(db, Tables.admins);
             const qAdmin = query(membersRefAdmin, where("email", "==", normalizedEmail));
             const querySnapshotAdmin = await getDocs(qAdmin);
@@ -39,16 +39,16 @@ class UsersController {
                 const allAdminsSnapshot = await getDocs(allAdminsRef);
                 const allMembersRef = collection(db, Tables.members);
                 const allMembersSnapshot = await getDocs(allMembersRef);
-                
+
                 console.log("[Login] Total admins in DB:", allAdminsSnapshot.docs.length);
                 console.log("[Login] Total members in DB:", allMembersSnapshot.docs.length);
-                
+
                 // Log all emails for debugging
                 allAdminsSnapshot.docs.forEach((doc, idx) => {
                     const email = doc.data().email;
                     console.log(`[Login] Admin ${idx} email: "${email}" (normalized: "${email?.toLowerCase().trim()}")`);
                 });
-                
+
                 const adminMatch = allAdminsSnapshot.docs.find(doc => {
                     const docEmail = doc.data().email;
                     if (!docEmail) return false;
@@ -63,12 +63,12 @@ class UsersController {
                     if (match) console.log(`[Login] Found member match: "${docEmail}"`);
                     return match;
                 });
-                
+
                 if (!adminMatch && !memberMatch) {
                     console.log("[Login] User not found even with case-insensitive search");
                     return res.status(404).json({ error: "User not found." });
                 }
-                
+
                 // Use the found match
                 if (adminMatch) {
                     const doc = adminMatch;
@@ -79,14 +79,11 @@ class UsersController {
                     if (!passwordMatch) {
                         return res.status(401).json({ error: "Invalid password." });
                     }
-                    // Admin tokens expire in 7 days
-                    const ADMIN_EXPIRATION_DAYS = 7;
-                    const sessionId = await SessionService.createSession(userId, ADMIN_EXPIRATION_DAYS);
+                    const sessionId = await SessionService.createSession(userId, 365); // 365 days for admin (but won't expire due to validation logic)
                     res.cookie('sessionId', sessionId, {
-                        httpOnly: true,
-                        secure: process.env.NODE_ENV === 'production',
                         sameSite: 'lax',
-                        maxAge: ADMIN_EXPIRATION_DAYS * 24 * 60 * 60 * 1000 // 7 days for admin
+                        path: '/',
+                        maxAge: 365 * 24 * 60 * 60 * 1000 // 365 days for admin
                     });
                     return res.json({
                         user: {
@@ -106,9 +103,8 @@ class UsersController {
                     }
                     const sessionId = await SessionService.createSession(userId);
                     res.cookie('sessionId', sessionId, {
-                        httpOnly: true,
-                        secure: process.env.NODE_ENV === 'production',
                         sameSite: 'lax',
+                        path: '/',
                         maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
                     });
                     return res.json({
@@ -137,19 +133,28 @@ class UsersController {
             if (!userData || !userData.password || !userId) {
                 return res.status(401).json({ error: "Invalid credentials." });
             }
-            
+
             const passwordMatch = await bcrypt.compare(password, userData.password);
             if (!passwordMatch) {
                 return res.status(401).json({ error: "Invalid password." });
             }
 
-            const sessionId = await SessionService.createSession(userId);
+            // Check if user is an admin to set appropriate session expiration
+            const isAdmin = !querySnapshotAdmin.empty;
+            const expirationDays = isAdmin ? 365 : 30; // 365 days for admin, 30 for members
+            const sessionId = await SessionService.createSession(userId, expirationDays);
             res.cookie("sessionId", sessionId, {
-                sameSite: "strict",
-                maxAge: 30 * 24 * 60 * 60 * 1000,
+                sameSite: "lax",
+                path: "/",
+                maxAge: expirationDays * 24 * 60 * 60 * 1000,
             });
 
-            return res.json(userData);
+            const role = userData.role || (querySnapshotAdmin.empty ? "member" : "admin");
+            return res.json({
+                user: { id: userId, email: userData.email, role },
+                role,
+                sessionId,
+            });
         } catch (err) {
             console.error("Login error:", err);
             return res.status(500).json({ error: "Internal server error." });
@@ -167,7 +172,7 @@ class UsersController {
             const membersRef = collection(db, Tables.members);
             const q = query(membersRef, where("email", "==", email));
             const querySnapshot = await getDocs(q);
-            
+
             const adminsRef = collection(db, Tables.admins);
             const qAdmin = query(adminsRef, where("email", "==", email));
             const querySnapshotAdmin = await getDocs(qAdmin);
@@ -179,8 +184,8 @@ class UsersController {
             // Note: Password reset email functionality needs to be implemented
             // with a local email service (not Google/Firebase)
             // For now, return a message indicating the feature needs implementation
-            return res.status(501).json({ 
-                error: "Password reset email functionality needs to be implemented with a local email service." 
+            return res.status(501).json({
+                error: "Password reset email functionality needs to be implemented with a local email service."
             });
         } catch (error: any) {
             console.error("Password reset error:", error);
@@ -238,19 +243,21 @@ class UsersController {
     }
 
     static async verifyVIP(req: Request, res: Response) {
-        let sessionId = req.headers.authorization;
+        let sessionId: string | undefined =
+            (req.headers.authorization || "").replace(/^Bearer\s+/i, "").trim() ||
+            (req.cookies?.sessionId as string) ||
+            "";
         if (!sessionId) {
             return res.status(401).json({ message: "No session ID provided" });
         }
-        sessionId = sessionId.replace("Bearer ", "");
 
         const RefR = doc(db, Tables.sessions, sessionId);
         const sessionDoc = await getDoc(RefR);
-        if (!sessionDoc.exists()) return res.status(404).json({ message: "No session ID provided" });
+        if (!sessionDoc.exists()) return res.status(401).json({ message: "Session not found or expired" });
         const session = sessionDoc.data();
 
         if (!session) {
-            return res.status(404).json({ message: "Invalid session" });
+            return res.status(401).json({ message: "Invalid session" });
         }
 
         const RefA = doc(db, Tables.admins, session.userId);
@@ -259,7 +266,7 @@ class UsersController {
             return res.status(200).json({ message: "Valid VIP access" });
         }
 
-
+        // Session exists but user no longer in admins (e.g. admin record was deleted) → ask to re-login
         const Ref = doc(db, Tables.members, session.userId);
         const Snapshot = await getDoc(Ref);
         if (Snapshot.exists()) {
@@ -279,7 +286,8 @@ class UsersController {
                 res.status(403).json({ message: "VIP expired" });
             }
         } else {
-            return res.status(404).json({ message: "Invalid session" });
+            // Session valid but userId not in admins or members (e.g. admin was deleted) → re-login needed
+            return res.status(403).json({ message: "Session invalid or user removed. Please log in again." });
         }
     }
 

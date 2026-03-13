@@ -11,11 +11,17 @@ class RecordController {
         try {
             const page = parseInt(req.query.page as string) || 1;
             const pageSize = parseInt(req.query.limit as string) || 10;
+            const table = (req.query.table as string) || Tables.records;
 
-            const recordsRef = collection(db, Tables.records);
+            // Prevent browser cache so new records show after add (record1/record2 list + home)
+            res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
+            res.setHeader("Pragma", "no-cache");
+            res.setHeader("Expires", "0");
+
+            const recordsRef = collection(db, table);
             const totalSnapshot = await getCountFromServer(recordsRef);
             const total = totalSnapshot.data().count;
-            const recordsQuery = query(recordsRef, orderBy("created_at", "desc"));
+            const recordsQuery = query(recordsRef, orderBy("date", "desc"));
             const snapshot = await getDocs(recordsQuery);
             const docs = snapshot.docs;
             const start = (page - 1) * pageSize;
@@ -44,8 +50,9 @@ class RecordController {
 
     static async createRecord(req: Request, res: Response) {
         try {
-            const { description, title, date, user } = req.body;
+            const { description, title, date, user, table } = req.body;
             const media = req.files ? req.files : null;
+            const tableName = table || Tables.records;
 
             let mediaPaths: string[] = [];
             if (media && Array.isArray(media)) {
@@ -62,7 +69,7 @@ class RecordController {
                 created_at: new Date().toISOString(),
             };
 
-            const recordRef = await addDoc(collection(db, Tables.records), newRecord);
+            const recordRef = await addDoc(collection(db, tableName), newRecord);
 
             res.json({
                 message: "Record added successfully",
@@ -81,8 +88,10 @@ class RecordController {
             const recordId = req.params.id;
             const updates = req.body;
             const media = req.files ? req.files : null;
+            const tableName = updates.table || Tables.records;
+            delete updates.table; // Remove table from updates before saving
 
-            const recordRef = doc(db, Tables.records, recordId);
+            const recordRef = doc(db, tableName, recordId);
             const recordSnap = await getDoc(recordRef);
 
             if (!recordSnap.exists()) {
@@ -134,7 +143,8 @@ class RecordController {
     static async deleteRecord(req: Request, res: Response) {
         try {
             const recordId = req.params.id;
-            const recordRef = doc(db, Tables.records, recordId);
+            const table = (req.query.table as string) || Tables.records;
+            const recordRef = doc(db, table, recordId);
             const recordSnap = await getDoc(recordRef);
 
             if (!recordSnap.exists()) {

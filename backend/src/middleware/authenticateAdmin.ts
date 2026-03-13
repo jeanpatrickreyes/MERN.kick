@@ -11,7 +11,12 @@ const authenticateAdmin = async (req: Request, res: Response, next: NextFunction
         res.status(401).json({ message: "No session ID provided" });
         return;
     }
-    sessionId = sessionId.replace("Bearer ", "");
+    sessionId = sessionId.replace("Bearer ", "").trim();
+
+    if (!sessionId) {
+        res.status(401).json({ message: "No session ID provided" });
+        return;
+    }
 
     try {
         const session = await SessionService.validateSession(sessionId);
@@ -27,6 +32,7 @@ const authenticateAdmin = async (req: Request, res: Response, next: NextFunction
         if (adminSnapshot.exists()) {
             let data = adminSnapshot.data();
             data.id = session.userId;
+            if (!req.body) req.body = {};
             req.body.user = data;
             next();
         } else {
@@ -34,7 +40,8 @@ const authenticateAdmin = async (req: Request, res: Response, next: NextFunction
         }
     } catch (error) {
         console.error("Error validating session", error);
-        res.status(401).json({ message: "Error validating session" });
+        // Use 500 for server errors — 401 would trigger frontend logout
+        res.status(500).json({ message: "Server error validating session" });
     }
 };
 
