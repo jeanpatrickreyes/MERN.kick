@@ -290,7 +290,7 @@ class MatchController {
                 if (h == null || a == null || Number.isNaN(h) || Number.isNaN(a)) return;
                 const total = h + a;
                 if (total <= 0) return;
-                match.ia = { home: (h / total) * 100, away: (a / total) * 100, draw: 0 };
+                match.ia = { home: (h / total) * 100, away: (a / total) * 100, draw: 0, bestPick: match.ia?.bestPick };
             };
             if (!refresh) {
                 const cached = await cacheGet<any[]>(CacheKeys.matchesList(false));
@@ -471,7 +471,7 @@ class MatchController {
                 if (Number.isNaN(h) || Number.isNaN(a)) return;
                 const total = h + a;
                 if (total <= 0) return;
-                match.ia = { home: (h / total) * 100, away: (a / total) * 100, draw: 0 };
+                match.ia = { home: (h / total) * 100, away: (a / total) * 100, draw: 0, bestPick: match.ia?.bestPick };
             };
 
             // Try Redis cache first when not forcing refresh
@@ -865,10 +865,11 @@ class MatchController {
                                     const ia = {
                                         home: Number(redistributedHome.toFixed(2)),
                                         away: Number(redistributedAway.toFixed(2)),
-                                        draw: resultIa.draw
+                                        draw: resultIa.draw,
+                                        bestPick: resultIa.bestPick,
                                     };
                                     const matchRef = doc(db, Tables.matches, id);
-                                    setDoc(matchRef, { ia }, { merge: true }).then(() => {
+                                    setDoc(matchRef, { ia, analysis_status: "completed" }, { merge: true }).then(() => {
                                         cacheDel(CacheKeys.matchDetail(id));
                                         cacheDel(CacheKeys.matchesList(false));
                                         cacheDel(CacheKeys.matchesList(true));

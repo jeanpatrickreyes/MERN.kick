@@ -48,7 +48,7 @@ function DetailsMatchPage() {
                 setLoadingGenerate(true);
                 setHasGenerated(true);
                 // Fetch match details with refresh to get predictions and other missing data
-                API.GET(AppGlobal.baseURL + "match/match-data/" + id + "?refresh=true")
+                API.GET(AppGlobal.baseURL + "match/match-data/" + id)
                     .then((refreshRes) => {
                         if (refreshRes.status === 200 && refreshRes.data) {
                             // Update query data with refreshed data

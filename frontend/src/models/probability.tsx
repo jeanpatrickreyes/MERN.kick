@@ -42,6 +42,7 @@ export interface ResultIA {
   draw: number;
   home: number;
   away: number;
+  bestPick?: string;
 }
 
 export interface Predictions {

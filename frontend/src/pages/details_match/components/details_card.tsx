@@ -11,6 +11,15 @@ interface Props {
     probability: Probability;
 }
 
+/** Convert bestPick like "OVER_2.5" to Chinese display like "大2.5" */
+function formatBestPick(bestPick?: string): string {
+    if (!bestPick) return "";
+    const pick = bestPick.toUpperCase();
+    if (pick.startsWith("OVER_")) return "大" + pick.replace("OVER_", "");
+    if (pick.startsWith("UNDER_")) return "細" + pick.replace("UNDER_", "");
+    return bestPick;
+}
+
 function DetailsCardComponent({
     probability
 }: Props) {
@@ -30,7 +39,6 @@ function DetailsCardComponent({
         homeWin = (homeWin / total) * 100;
         awayWin = (awayWin / total) * 100;
     } else {
-        // If both are 0, default to 50/50
         homeWin = 50;
         awayWin = 50;
     }
@@ -51,14 +59,23 @@ function DetailsCardComponent({
     const awayWinCount = awayResults.filter(r => r === "W").length;
     const awayWinRate = ((awayWinCount / awayResults.length) * 100).toFixed(0);
 
-    const conditionHome = probability.condition ? probability.condition.split(',')[0] : undefined
-    const conditionAway = probability.condition ? probability.condition.split(',')[1] : undefined
+    const bestPick = probability.ia?.bestPick;
+    const bestPickDisplay = formatBestPick(bestPick);
 
     return (
         <div className="w-full flex justify-center items-center flex-col">
 
-            <div className="sm:w-2/3 w-5/6 flex flex-col h-48 bg-white rounded-lg mt-5 items-center justify-center">
+            {/* Analysis Header: 分析：大2.5 */}
+            {bestPickDisplay && (
+                <div className="sm:w-2/3 w-5/6 flex flex-col bg-white rounded-lg mt-5 items-center justify-center py-4">
+                    <p className="text-xl sm:text-2xl font-bold text-black">
+                        分析：<span style={{ color: AppColors.primary }}>{bestPickDisplay}</span>
+                    </p>
+                </div>
+            )}
 
+            {/* Probability bars with HiLo pick */}
+            <div className="sm:w-2/3 w-5/6 flex flex-col h-48 bg-white rounded-lg mt-5 items-center justify-center">
 
                 <div className="sm:w-2/3 w-5/6 flex flex-col bg-white rounded-lg mt-5 items-center justify-center">
                     <div className="w-full space-y-3 px-6">
@@ -86,18 +103,11 @@ function DetailsCardComponent({
                                     {`${getTeamNameInCurrentLanguage(probability.homeLanguages, probability.homeTeamName)}`}
                                 </ThemedText>
 
-                                {
-                                    conditionHome
-                                        ? <ThemedText
-                                            className="font-bold text-[15px] sm:text-[17px] leading-tight pl-3"
-                                            type="defaultSemiBold"
-                                            style={{
-                                                color: "black",
-                                            }}
-                                        >
-                                            {`     ${conditionHome.replace(".0", "")}`}
-                                        </ThemedText> : undefined
-                                }
+                                {bestPickDisplay && (
+                                    <span className="ml-3 px-2 py-0.5 border border-red-500 text-red-500 text-sm font-bold rounded">
+                                        {bestPickDisplay}
+                                    </span>
+                                )}
                                 <Crown winRate={homeWin} size="w-4" className="ml-2" />
                             </div>
                             <span>{homeWin.toFixed(0)}%</span>
@@ -141,18 +151,11 @@ function DetailsCardComponent({
                                     {`${getTeamNameInCurrentLanguage(probability.awayLanguages, probability.awayTeamName)}`}
                                 </ThemedText>
 
-                                {
-                                    conditionAway
-                                        ? <ThemedText
-                                            className="font-bold text-[15px] sm:text-[17px] leading-tight pl-3"
-                                            type="defaultSemiBold"
-                                            style={{
-                                                color: "black",
-                                            }}
-                                        >
-                                            {`     ${conditionAway.replace(".0", "")}`}
-                                        </ThemedText> : undefined
-                                }
+                                {bestPickDisplay && (
+                                    <span className="ml-3 px-2 py-0.5 border border-red-500 text-red-500 text-sm font-bold rounded">
+                                        {bestPickDisplay}
+                                    </span>
+                                )}
                                 <Crown winRate={awayWin} size="w-4" className="ml-2" />
                             </div>
                             <span>{awayWin.toFixed(0)}%</span>
@@ -173,11 +176,11 @@ function DetailsCardComponent({
             </div>
 
 
-
+            {/* Home team stats card */}
             <div className="sm:w-2/3 w-5/6 flex flex-col h-48 bg-white rounded-lg mt-5 items-center justify-center">
 
                 <div className="flex items-start sm:w-2/3 w-5/6 mb-2">
-                    <Card name={getTeamNameInCurrentLanguage(probability.homeLanguages, probability.homeTeamName)} condition={probability.condition ? probability.condition.split(',')[0] : undefined} img={probability.homeTeamLogo} probility={homeWin} />
+                    <Card name={getTeamNameInCurrentLanguage(probability.homeLanguages, probability.homeTeamName)} bestPick={bestPickDisplay} img={probability.homeTeamLogo} probility={homeWin} />
                 </div>
 
                 <p className="sm:text-sm text-sm sm:h-4 h-4 font-bold text-black text-center">
@@ -217,10 +220,11 @@ function DetailsCardComponent({
                 </div>
             </div>
 
+            {/* Away team stats card */}
             <div className="sm:w-2/3 w-5/6 flex flex-col h-48 bg-white rounded-lg mt-5 items-center justify-center">
 
                 <div className="flex items-start sm:w-2/3 w-5/6 mb-2">
-                    <Card name={getTeamNameInCurrentLanguage(probability.awayLanguages, probability.awayTeamName)} condition={probability.condition ? probability.condition.split(',')[1] : undefined} img={probability.awayTeamLogo} probility={awayWin} />
+                    <Card name={getTeamNameInCurrentLanguage(probability.awayLanguages, probability.awayTeamName)} bestPick={bestPickDisplay} img={probability.awayTeamLogo} probility={awayWin} />
                 </div>
 
                 <p className="sm:text-sm text-xs sm:h-4 h-4 font-bold text-black text-center">
@@ -266,14 +270,14 @@ function DetailsCardComponent({
 
 
 interface PropsCard {
-    img?: string, name: string, probility: number, condition?: string
+    img?: string, name: string, probility: number, bestPick?: string
 }
 
 function Card({
     img,
     name,
     probility,
-    condition
+    bestPick
 }: PropsCard) {
     return <div style={{ flexDirection: "row" }}>
 
@@ -300,20 +304,11 @@ function Card({
                 {`${name}`}
             </ThemedText>
 
-
-            {
-                condition
-                    ? <ThemedText
-                        className="font-bold text-[17px] sm:text-[17px] leading-tight pl-4"
-                        type="defaultSemiBold"
-                        style={{
-                            color: "black",
-                        }}
-                    >
-                        {`    ${condition.replace(".0", "")}`}
-                    </ThemedText> : undefined
-            }
-
+            {bestPick && (
+                <span className="ml-3 px-2 py-0.5 border border-red-500 text-red-500 text-base font-bold rounded">
+                    {bestPick}
+                </span>
+            )}
 
             <div className="w-12 h-10 rounded-lg flex ml-4"
                 style={{ backgroundColor: AppColors.primary, alignItems: "center", justifyContent: "center", justifyItems: "center" }}>
