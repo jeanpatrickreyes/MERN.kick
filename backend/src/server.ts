@@ -173,25 +173,21 @@ async function start() {
     } else {
         console.log("[STARTUP] Redis not configured");
     }
-    // Clear matches list cache so first request gets fresh list from HKJC (avoids showing stale extra dates)
+    // Start listening FIRST so the site loads immediately from DB data
+    app.listen(PORT, () => {
+        console.log(`Server is running on http://localhost:${PORT}`);
+    });
+
+    // Then sync HKJC and run analysis in background (non-blocking)
     cacheDelPattern('matches:list:*').then(() => console.log("[STARTUP] Cleared matches list cache"));
 
-    // On website load: sync HKJC to DB *before* accepting requests (so matches are in DB when user opens site)
-    const SYNC_TIMEOUT_MS = 45000;
-    console.log("[STARTUP] Syncing HKJC to DB (max wait " + SYNC_TIMEOUT_MS / 1000 + "s)...");
-    await Promise.race([
-        syncHkjcToMatches(),
-        new Promise((_, reject) => setTimeout(() => reject(new Error("sync timeout")), SYNC_TIMEOUT_MS)),
-    ]).then(() => console.log("[STARTUP] HKJC sync completed.")).catch((e) => {
-        console.error("[STARTUP] syncHkjc failed or timed out:", e?.message || e);
-    });
-
-    // After sync: trigger analysis worker once (batch Gemini for pending matches; Redis lock prevents duplicates)
-    setImmediate(() => {
-        runAnalysisBatch()
-            .then((r) => { if (r.ran) console.log("[STARTUP] Analysis batch ran, processed:", r.processed); })
-            .catch((e) => console.warn("[STARTUP] Analysis batch error:", e));
-    });
+    syncHkjcToMatches()
+        .then(() => {
+            console.log("[STARTUP] HKJC sync completed.");
+            return runAnalysisBatch();
+        })
+        .then((r) => { if (r.ran) console.log("[STARTUP] Analysis batch ran, processed:", r.processed); })
+        .catch((e) => console.warn("[STARTUP] Background sync/analysis error:", e));
 
     // Every 5 minutes: refresh matches from HKJC, then run analysis worker for pending/stale
     const FIVE_MINS_MS = 5 * 60 * 1000;
@@ -201,10 +197,6 @@ async function start() {
             .then((r) => { if (r.ran && r.processed) console.log("[cron] Analysis batch processed", r.processed); })
             .catch((e) => console.error("[syncHkjc] interval failed:", e));
     }, FIVE_MINS_MS);
-
-    app.listen(PORT, () => {
-        console.log(`Server is running on http://localhost:${PORT}`);
-    });
 }
 start().catch((err) => {
     console.error('Failed to start server:', err);
